@@ -13,6 +13,8 @@ It communicates with VMs via librdpmux, which implements the communication proto
 
 For build and installation instructions, see [INSTALL.md](./INSTALL.md).
 
+If you'd like to try RDPMux out, we have a reference implementation of the librdpmux integration for QEMU. Since the librdpmux integration code has not been merged into QEMU upstream (yet!), [get our custom fork here](https://github.com/datto/qemu/tree/librdpmux-integration). 
+
 For usage instructions, see [USAGE.md](./USAGE.md).
 
 ## Rationale
