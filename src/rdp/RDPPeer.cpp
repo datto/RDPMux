@@ -460,9 +460,9 @@ void RDPPeer::FullDisplayUpdate(pixman_format_code_t f)
 
     try {
         r = GetPixelFormatForPixmanFormat(f);
-    } catch (std::invalid_argument e) {
+    } catch (std::invalid_argument &e) {
         // TODO: notify the outside somehow that we have stuff to implement
-        VLOG(3) << "PEER: Unknown pixel format " << r << " received.";
+        VLOG(3) << "PEER: Unknown pixel format received.";
         return;
     }
 
