@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.3)
+cmake_minimum_required(VERSION 3.2)
 project(rdpmux)
 
 # Path settings
@@ -18,10 +18,11 @@ set(CMAKE_CXX_FLAGS_DEBUG "${GENERAL_DEBUG_FLAGS}")
 set(CMAKE_CXX_FLAGS_RELEASE "${GENERAL_RELEASE_FLAGS}")
 
 # Source file globbing
-file(GLOB_RECURSE QEMU_RDP_SOURCE_FILES "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp")
+include_directories("${CMAKE_CURRENT_SOURCE_DIR}/include")
+include(GNUInstallDirs)
+file(GLOB_RECURSE QEMU_RDP_SOURCE_FILES "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp" "${CMAKE_CURRENT_SOURCE_DIR}/include/*.h")
 
 add_executable(rdpmux ${QEMU_RDP_SOURCE_FILES})
-include_directories("${CMAKE_CURRENT_SOURCE_DIR}/include")
 
 find_package(RT)
 target_link_libraries(rdpmux ${RT_LIBRARIES})
@@ -75,3 +76,10 @@ include_directories(${PIXMAN_INCLUDE_DIR})
 find_package( Boost COMPONENTS program_options REQUIRED)
 include_directories( ${Boost_INCLUDE_DIR} )
 target_link_libraries(rdpmux ${Boost_LIBRARIES})
+
+install(TARGETS
+        rdpmux
+        ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"
+        LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
+        RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}"
+        )
