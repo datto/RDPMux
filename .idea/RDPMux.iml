@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<module type="CPP_MODULE" version="4">
+  <component name="NewModuleRootManager">
+    <content url="file://$MODULE_DIR$">
+      <sourceFolder url="file://$MODULE_DIR$/src/util/MessageQueue.cpp" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/src/main.cpp" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/src/rdp/RDPPeer.cpp" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/src/rdp/RDPListener.cpp" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/src/rdp/DisplayBuffer.cpp" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/src/rdp/formats/DisplayBuffer_r8g8b8a8.cpp" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/src/rdp/formats/DisplayBuffer_r8g8b8.cpp" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/src/rdp/formats/DisplayBuffer_a8r8g8b8.cpp" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/src/RDPServerWorker.cpp" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/include/common.h" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/include/util/MessageQueue.h" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/include/util/logging.h" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/include/rdp/RDPListener.h" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/include/rdp/DisplayBuffer.h" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/include/rdp/RDPPeer.h" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/include/rdp/formats/DisplayBuffer_r8g8b8.h" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/include/rdp/formats/DisplayBuffer_a8r8g8b8.h" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/include/rdp/formats/DisplayBuffer_r8g8b8a8.h" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/include/nanomsg.h" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/include/RDPServerWorker.h" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/CMakeLists.txt" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/cmake/FindFreeRDP.cmake" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/cmake/FindRT.cmake" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/cmake/FindSigc++.cmake" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/cmake/FindPixman.cmake" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/cmake/FindGiomm.cmake" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/cmake/FindNanomsg.cmake" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/cmake/FindMsgpack.cmake" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/cmake/FindGLibmm.cmake" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/cmake/FindGlib2.cmake" isTestSource="false" />
+    </content>
+    <orderEntry type="sourceFolder" forTests="false" />
+    <orderEntry type="module-library">
+      <library name="Header Search Paths">
+        <CLASSES>
+          <root url="file:///usr/lib/gcc/x86_64-redhat-linux/5.3.1/include" />
+          <root url="file:///usr/lib64/sigc++-2.0/include" />
+          <root url="file:///usr/lib64/glib-2.0/include" />
+          <root url="file:///usr/lib64/glibmm-2.4/include" />
+          <root url="file:///usr/lib64/giomm-2.4/include" />
+          <root url="file:///usr/include" />
+          <root url="file:///usr/local/include" />
+        </CLASSES>
+        <SOURCES>
+          <root url="file:///usr/lib/gcc/x86_64-redhat-linux/5.3.1/include" />
+          <root url="file:///usr/lib64/sigc++-2.0/include" />
+          <root url="file:///usr/lib64/glib-2.0/include" />
+          <root url="file:///usr/lib64/glibmm-2.4/include" />
+          <root url="file:///usr/lib64/giomm-2.4/include" />
+          <root url="file:///usr/include" />
+          <root url="file:///usr/local/include" />
+        </SOURCES>
+      </library>
+    </orderEntry>
+  </component>
+</module>
