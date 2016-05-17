@@ -125,9 +125,9 @@ $(document).ready(function(){initNavTree('classRDPServerWorker.html','');});
 <table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a name="pub-methods"></a>
 Public Member Functions</h2></td></tr>
-<tr class="memitem:a593ca371fd4c7fd166e7cf43a1a1d664"><td class="memItemLeft" align="right" valign="top">&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classRDPServerWorker.html#a593ca371fd4c7fd166e7cf43a1a1d664">RDPServerWorker</a> (const Glib::ustring &amp;path, int <a class="el" href="classRDPServerWorker.html#a7c48c40c5664ecf56813d064a669a74c">vm_id</a>)</td></tr>
-<tr class="memdesc:a593ca371fd4c7fd166e7cf43a1a1d664"><td class="mdescLeft">&#160;</td><td class="mdescRight">Creates a new RDPServerworker object.  <a href="#a593ca371fd4c7fd166e7cf43a1a1d664">More...</a><br /></td></tr>
-<tr class="separator:a593ca371fd4c7fd166e7cf43a1a1d664"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a7436ea4a62c5762c9684562992a97d2b"><td class="memItemLeft" align="right" valign="top">&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classRDPServerWorker.html#a7436ea4a62c5762c9684562992a97d2b">RDPServerWorker</a> (const Glib::ustring &amp;path, int <a class="el" href="classRDPServerWorker.html#a7c48c40c5664ecf56813d064a669a74c">vm_id</a>, uint16_t <a class="el" href="classRDPServerWorker.html#a57b3f731c07f001dfdf60b654748031e">port</a>, Glib::ustring <a class="el" href="classRDPServerWorker.html#abde4bba1642d8e93eaa9e06b55bf3c58">uuid</a>)</td></tr>
+<tr class="memdesc:a7436ea4a62c5762c9684562992a97d2b"><td class="mdescLeft">&#160;</td><td class="mdescRight">Creates a new RDPServerworker object.  <a href="#a7436ea4a62c5762c9684562992a97d2b">More...</a><br /></td></tr>
+<tr class="separator:a7436ea4a62c5762c9684562992a97d2b"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a2881adba1e8c070b58b5b7a2a347b6af"><td class="memItemLeft" align="right" valign="top"><a class="anchor" id="a2881adba1e8c070b58b5b7a2a347b6af"></a>
 void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classRDPServerWorker.html#a2881adba1e8c070b58b5b7a2a347b6af">start</a> ()</td></tr>
 <tr class="memdesc:a2881adba1e8c070b58b5b7a2a347b6af"><td class="mdescLeft">&#160;</td><td class="mdescRight">starts the run loop. <br /></td></tr>
@@ -138,6 +138,9 @@ void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="clas
 <tr class="memitem:a3deed9d9cfc2362acff5c859b803bf31"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classRDPServerWorker.html#a3deed9d9cfc2362acff5c859b803bf31">processIncomingMessage</a> (const <a class="el" href="classQueueItem.html">QueueItem</a> *item)</td></tr>
 <tr class="memdesc:a3deed9d9cfc2362acff5c859b803bf31"><td class="mdescLeft">&#160;</td><td class="mdescRight">Processes incoming messages and dispatches them to the listener appropriately.  <a href="#a3deed9d9cfc2362acff5c859b803bf31">More...</a><br /></td></tr>
 <tr class="separator:a3deed9d9cfc2362acff5c859b803bf31"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ad651ad757cf14b79892b8582572385f5"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classRDPServerWorker.html#ad651ad757cf14b79892b8582572385f5">setDBusConnection</a> (Glib::RefPtr&lt; Gio::DBus::Connection &gt; conn)</td></tr>
+<tr class="memdesc:ad651ad757cf14b79892b8582572385f5"><td class="mdescLeft">&#160;</td><td class="mdescRight">Sets the current DBus connection for internal usage.  <a href="#ad651ad757cf14b79892b8582572385f5">More...</a><br /></td></tr>
+<tr class="separator:ad651ad757cf14b79892b8582572385f5"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a name="pub-attribs"></a>
 Public Attributes</h2></td></tr>
@@ -145,13 +148,20 @@ Public Attributes</h2></td></tr>
 Glib::Dispatcher&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classRDPServerWorker.html#a5c99859ba8b1a0c6261b1532731084b6">socket_creation_done</a></td></tr>
 <tr class="memdesc:a5c99859ba8b1a0c6261b1532731084b6"><td class="mdescLeft">&#160;</td><td class="mdescRight">Signal that socket creation has completed. <br /></td></tr>
 <tr class="separator:a5c99859ba8b1a0c6261b1532731084b6"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a57b3f731c07f001dfdf60b654748031e"><td class="memItemLeft" align="right" valign="top"><a class="anchor" id="a57b3f731c07f001dfdf60b654748031e"></a>
+uint16_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classRDPServerWorker.html#a57b3f731c07f001dfdf60b654748031e">port</a></td></tr>
+<tr class="memdesc:a57b3f731c07f001dfdf60b654748031e"><td class="mdescLeft">&#160;</td><td class="mdescRight">Integer denoting the next port to start a listener on. <br /></td></tr>
+<tr class="separator:a57b3f731c07f001dfdf60b654748031e"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aac8d6aea00766c0416e49324b3d436b8"><td class="memItemLeft" align="right" valign="top"><a class="anchor" id="aac8d6aea00766c0416e49324b3d436b8"></a>
+Glib::RefPtr&lt; Gio::DBus::Connection &gt;&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classRDPServerWorker.html#aac8d6aea00766c0416e49324b3d436b8">dbus_conn</a></td></tr>
+<tr class="memdesc:aac8d6aea00766c0416e49324b3d436b8"><td class="mdescLeft">&#160;</td><td class="mdescRight">Reference to the process's DBus connection for registering ServerWorker object. <br /></td></tr>
+<tr class="separator:aac8d6aea00766c0416e49324b3d436b8"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a name="pub-static-attribs"></a>
 Static Public Attributes</h2></td></tr>
-<tr class="memitem:a57b3f731c07f001dfdf60b654748031e"><td class="memItemLeft" align="right" valign="top"><a class="anchor" id="a57b3f731c07f001dfdf60b654748031e"></a>
-static uint16_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classRDPServerWorker.html#a57b3f731c07f001dfdf60b654748031e">port</a> = 3901</td></tr>
-<tr class="memdesc:a57b3f731c07f001dfdf60b654748031e"><td class="mdescLeft">&#160;</td><td class="mdescRight">Integer denoting the next port to start a listener on. <br /></td></tr>
-<tr class="separator:a57b3f731c07f001dfdf60b654748031e"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a3c349a4cdd63b31aeff87f2c8308e735"><td class="memItemLeft" align="right" valign="top">static Glib::ustring&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classRDPServerWorker.html#a3c349a4cdd63b31aeff87f2c8308e735">introspection_xml</a></td></tr>
+<tr class="memdesc:a3c349a4cdd63b31aeff87f2c8308e735"><td class="mdescLeft">&#160;</td><td class="mdescRight">Introspection XML for the DBus object on the bus.  <a href="#a3c349a4cdd63b31aeff87f2c8308e735">More...</a><br /></td></tr>
+<tr class="separator:a3c349a4cdd63b31aeff87f2c8308e735"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a name="pro-methods"></a>
 Protected Member Functions</h2></td></tr>
@@ -159,6 +169,14 @@ Protected Member Functions</h2></td></tr>
 void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classRDPServerWorker.html#ae11a82ec9e7357bbe326f6ae0a6044ef">run</a> ()</td></tr>
 <tr class="memdesc:ae11a82ec9e7357bbe326f6ae0a6044ef"><td class="mdescLeft">&#160;</td><td class="mdescRight">Main loop function that receives messages and processes them for dispatch to the RDP listener. <br /></td></tr>
 <tr class="separator:ae11a82ec9e7357bbe326f6ae0a6044ef"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a3a6cccf0361aa9de4c4279e65f6fa4da"><td class="memItemLeft" align="right" valign="top"><a class="anchor" id="a3a6cccf0361aa9de4c4279e65f6fa4da"></a>
+void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classRDPServerWorker.html#a3a6cccf0361aa9de4c4279e65f6fa4da">on_method_call</a> (const Glib::RefPtr&lt; Gio::DBus::Connection &gt; &amp;, const Glib::ustring &amp;, const Glib::ustring &amp;, const Glib::ustring &amp;, const Glib::ustring &amp;method_name, const Glib::VariantContainerBase &amp;parameters, const Glib::RefPtr&lt; Gio::DBus::MethodInvocation &gt; &amp;invocation)</td></tr>
+<tr class="memdesc:a3a6cccf0361aa9de4c4279e65f6fa4da"><td class="mdescLeft">&#160;</td><td class="mdescRight">Method called when a DBus method call is invoked. <br /></td></tr>
+<tr class="separator:a3a6cccf0361aa9de4c4279e65f6fa4da"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:adc136a02a74337cc5aa22f26bfcc4271"><td class="memItemLeft" align="right" valign="top"><a class="anchor" id="adc136a02a74337cc5aa22f26bfcc4271"></a>
+void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classRDPServerWorker.html#adc136a02a74337cc5aa22f26bfcc4271">on_property_call</a> (Glib::VariantBase &amp;property, const Glib::RefPtr&lt; Gio::DBus::Connection &gt; &amp;, const Glib::ustring &amp;, const Glib::ustring &amp;, const Glib::ustring &amp;, const Glib::ustring &amp;property_name)</td></tr>
+<tr class="memdesc:adc136a02a74337cc5aa22f26bfcc4271"><td class="mdescLeft">&#160;</td><td class="mdescRight">Method called when a DBus property is needed. <br /></td></tr>
+<tr class="separator:adc136a02a74337cc5aa22f26bfcc4271"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a name="pro-attribs"></a>
 Protected Attributes</h2></td></tr>
@@ -178,6 +196,10 @@ bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="clas
 Glib::ustring&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classRDPServerWorker.html#a2e71eeed0ce158d30ab26c8cf0f6392c">socket_path</a></td></tr>
 <tr class="memdesc:a2e71eeed0ce158d30ab26c8cf0f6392c"><td class="mdescLeft">&#160;</td><td class="mdescRight">Path to the socket in the filesystem. <br /></td></tr>
 <tr class="separator:a2e71eeed0ce158d30ab26c8cf0f6392c"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:abde4bba1642d8e93eaa9e06b55bf3c58"><td class="memItemLeft" align="right" valign="top"><a class="anchor" id="abde4bba1642d8e93eaa9e06b55bf3c58"></a>
+Glib::ustring&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classRDPServerWorker.html#abde4bba1642d8e93eaa9e06b55bf3c58">uuid</a></td></tr>
+<tr class="memdesc:abde4bba1642d8e93eaa9e06b55bf3c58"><td class="mdescLeft">&#160;</td><td class="mdescRight">UUID of the VM associated with this ServerWorker. <br /></td></tr>
+<tr class="separator:abde4bba1642d8e93eaa9e06b55bf3c58"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ab73f628b94575e40ef244d54f2660be8"><td class="memItemLeft" align="right" valign="top"><a class="anchor" id="ab73f628b94575e40ef244d54f2660be8"></a>
 nn::socket *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classRDPServerWorker.html#ab73f628b94575e40ef244d54f2660be8">sock</a></td></tr>
 <tr class="memdesc:ab73f628b94575e40ef244d54f2660be8"><td class="mdescLeft">&#160;</td><td class="mdescRight">Pointer to the nanomsg socket. <br /></td></tr>
@@ -190,13 +212,17 @@ int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="class
 <a class="el" href="classRDPListener.html">RDPListener</a> *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classRDPServerWorker.html#a1213594452fcb78e45b988c0bc059c0a">l</a></td></tr>
 <tr class="memdesc:a1213594452fcb78e45b988c0bc059c0a"><td class="mdescLeft">&#160;</td><td class="mdescRight">Reference to the <a class="el" href="classRDPListener.html" title="C++ class wrapping the freerdp_listener struct associated with the RDP server. ">RDPListener</a> object spawned by this VM. <br /></td></tr>
 <tr class="separator:a1213594452fcb78e45b988c0bc059c0a"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a47de7059674600fa38044ed8b971f700"><td class="memItemLeft" align="right" valign="top"><a class="anchor" id="a47de7059674600fa38044ed8b971f700"></a>
+guint&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classRDPServerWorker.html#a47de7059674600fa38044ed8b971f700">registered_id</a> = 0</td></tr>
+<tr class="memdesc:a47de7059674600fa38044ed8b971f700"><td class="mdescLeft">&#160;</td><td class="mdescRight">ID of the registered DBus object. <br /></td></tr>
+<tr class="separator:a47de7059674600fa38044ed8b971f700"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <a name="details" id="details"></a><h2 class="groupheader">Detailed Description</h2>
 <div class="textblock"><p>The <a class="el" href="classRDPServerWorker.html" title="The RDPServerWorker class manages the lifetime of the nanomsg socket and the RDP server and connectio...">RDPServerWorker</a> class manages the lifetime of the nanomsg socket and the RDP server and connection associated with the VM. </p>
 <p>RDPServerWorkers are spawned when a VM registers with the RDPMux server, and manage the lifecycle of the communication socket associated with the VM and the RDP server spawned to interact with the VM and client. They exist for as long as the VM associated with the connection is alive, and are closed when the VM itself closes.</p>
 <p>RDPServerworkers manage the deserialization of messages from the VM, and dispatching messages to the RDP listener. </p>
 </div><h2 class="groupheader">Constructor &amp; Destructor Documentation</h2>
-<a class="anchor" id="a593ca371fd4c7fd166e7cf43a1a1d664"></a>
+<a class="anchor" id="a7436ea4a62c5762c9684562992a97d2b"></a>
 <div class="memitem">
 <div class="memproto">
 <table class="mlabels">
@@ -213,7 +239,19 @@ int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="class
           <td class="paramkey"></td>
           <td></td>
           <td class="paramtype">int&#160;</td>
-          <td class="paramname"><em>vm_id</em>&#160;</td>
+          <td class="paramname"><em>vm_id</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">uint16_t&#160;</td>
+          <td class="paramname"><em>port</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">Glib::ustring&#160;</td>
+          <td class="paramname"><em>uuid</em>&#160;</td>
         </tr>
         <tr>
           <td></td>
@@ -232,7 +270,8 @@ int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="class
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
     <tr><td class="paramname">path</td><td>File path to the nanomsg socket in the filesystem </td></tr>
-    <tr><td class="paramname">vm_id</td><td>ID of the VM. </td></tr>
+    <tr><td class="paramname">vm_id</td><td>Internal VM ID. </td></tr>
+    <tr><td class="paramname">uuid</td><td>The external UUID of the VM. </td></tr>
   </table>
   </dd>
 </dl>
@@ -288,6 +327,59 @@ int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="class
   </table>
   </dd>
 </dl>
+
+</div>
+</div>
+<a class="anchor" id="ad651ad757cf14b79892b8582572385f5"></a>
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">void RDPServerWorker::setDBusConnection </td>
+          <td>(</td>
+          <td class="paramtype">Glib::RefPtr&lt; Gio::DBus::Connection &gt;&#160;</td>
+          <td class="paramname"><em>conn</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Sets the current DBus connection for internal usage. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">conn</td><td>Reference to the DBus connection object. </td></tr>
+  </table>
+  </dd>
+</dl>
+
+</div>
+</div>
+<h2 class="groupheader">Member Data Documentation</h2>
+<a class="anchor" id="a3c349a4cdd63b31aeff87f2c8308e735"></a>
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">Glib::ustring RDPServerWorker::introspection_xml</td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+<b>Initial value:</b><div class="fragment"><div class="line">=</div>
+<div class="line">        <span class="stringliteral">&quot;&lt;node&gt;&quot;</span></div>
+<div class="line">        <span class="stringliteral">&quot;  &lt;interface name=&#39;org.RDPMux.ServerWorker&#39;&gt;&quot;</span></div>
+<div class="line">        <span class="stringliteral">&quot;    &lt;property type=&#39;i&#39; name=&#39;Port&#39; access=&#39;read&#39; /&gt;&quot;</span></div>
+<div class="line">        <span class="stringliteral">&quot;  &lt;/interface&gt;&quot;</span></div>
+<div class="line">        <span class="stringliteral">&quot;&lt;/node&gt;&quot;</span></div>
+</div><!-- fragment -->
+<p>Introspection XML for the DBus object on the bus. </p>
 
 </div>
 </div>

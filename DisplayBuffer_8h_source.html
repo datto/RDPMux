@@ -107,74 +107,86 @@ $(document).ready(function(){initNavTree('DisplayBuffer_8h_source.html','');});
 <div class="title">DisplayBuffer.h</div>  </div>
 </div><!--header-->
 <div class="contents">
-<div class="fragment"><div class="line"><a name="l00001"></a><span class="lineno">    1</span>&#160;<span class="comment">//</span></div>
-<div class="line"><a name="l00002"></a><span class="lineno">    2</span>&#160;<span class="comment">// Created by sramanujam on 11/16/15.</span></div>
-<div class="line"><a name="l00003"></a><span class="lineno">    3</span>&#160;<span class="comment">//</span></div>
-<div class="line"><a name="l00004"></a><span class="lineno">    4</span>&#160;</div>
-<div class="line"><a name="l00005"></a><span class="lineno">    5</span>&#160;<span class="preprocessor">#ifndef QEMU_RDP_DISPLAYBUFFER_H</span></div>
-<div class="line"><a name="l00006"></a><span class="lineno">    6</span>&#160;<span class="preprocessor">#define QEMU_RDP_DISPLAYBUFFER_H</span></div>
-<div class="line"><a name="l00007"></a><span class="lineno">    7</span>&#160;</div>
-<div class="line"><a name="l00008"></a><span class="lineno">    8</span>&#160;<span class="preprocessor">#include &lt;cstdint&gt;</span></div>
-<div class="line"><a name="l00009"></a><span class="lineno">    9</span>&#160;<span class="preprocessor">#include &lt;tuple&gt;</span></div>
-<div class="line"><a name="l00010"></a><span class="lineno">   10</span>&#160;</div>
-<div class="line"><a name="l00011"></a><span class="lineno">   11</span>&#160;<span class="preprocessor">#include &lt;pixman.h&gt;</span></div>
-<div class="line"><a name="l00012"></a><span class="lineno">   12</span>&#160;</div>
-<div class="line"><a name="l00013"></a><span class="lineno">   13</span>&#160;</div>
-<div class="line"><a name="l00014"></a><span class="lineno">   14</span>&#160;<span class="preprocessor">#define ALIGN_SCREEN(size, align) ((size + align - 1) &amp; (~(align - 1)))</span></div>
-<div class="line"><a name="l00015"></a><span class="lineno">   15</span>&#160;<span class="preprocessor">#define PIXMAN_GET_R(f) ( (f &amp; 0x00ff0000) &gt;&gt; 16 )</span></div>
-<div class="line"><a name="l00016"></a><span class="lineno">   16</span>&#160;<span class="preprocessor">#define PIXMAN_GET_G(f) ( (f &amp; 0x0000ff00) &gt;&gt; 8 )</span></div>
-<div class="line"><a name="l00017"></a><span class="lineno">   17</span>&#160;<span class="preprocessor">#define PIXMAN_GET_B(f) ( (f &amp; 0x000000ff) )</span></div>
-<div class="line"><a name="l00018"></a><span class="lineno">   18</span>&#160;</div>
-<div class="line"><a name="l00024"></a><span class="lineno"><a class="line" href="classDisplayBuffer.html">   24</a></span>&#160;<span class="keyword">class </span><a class="code" href="classDisplayBuffer.html">DisplayBuffer</a> {</div>
-<div class="line"><a name="l00025"></a><span class="lineno">   25</span>&#160;<span class="keyword">public</span>:</div>
-<div class="line"><a name="l00033"></a><span class="lineno">   33</span>&#160;    <a class="code" href="classDisplayBuffer.html#a56e88d9acc1c0354b78a7591e12114b0">DisplayBuffer</a>(uint32_t x, uint32_t y, <span class="keywordtype">void</span> *shm);</div>
-<div class="line"><a name="l00034"></a><span class="lineno">   34</span>&#160;    <span class="keyword">virtual</span> ~<a class="code" href="classDisplayBuffer.html">DisplayBuffer</a>() {};</div>
-<div class="line"><a name="l00035"></a><span class="lineno">   35</span>&#160;</div>
-<div class="line"><a name="l00045"></a><span class="lineno">   45</span>&#160;    <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="classDisplayBuffer.html#a8f06ab2169da52acd3ca261f19c34cbf">FillDirtyRegion</a>(uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint8_t *dirty) =0;</div>
-<div class="line"><a name="l00046"></a><span class="lineno">   46</span>&#160;</div>
-<div class="line"><a name="l00052"></a><span class="lineno">   52</span>&#160;    uint32_t <a class="code" href="classDisplayBuffer.html#a412267d65d0dccfec198b059337d53e8">GetTileRegionHeight</a>();</div>
-<div class="line"><a name="l00053"></a><span class="lineno">   53</span>&#160;</div>
-<div class="line"><a name="l00059"></a><span class="lineno">   59</span>&#160;    uint32_t <a class="code" href="classDisplayBuffer.html#a46ba4ac2643f346a814b9216d0206c03">GetTileRegionWidth</a>();</div>
-<div class="line"><a name="l00060"></a><span class="lineno">   60</span>&#160;</div>
-<div class="line"><a name="l00066"></a><span class="lineno">   66</span>&#160;    <span class="keywordtype">void</span> <a class="code" href="classDisplayBuffer.html#a945caad151c932bd7ecc5e4cb684b7a2">SetShmRegion</a>(<span class="keywordtype">void</span> *region);</div>
-<div class="line"><a name="l00067"></a><span class="lineno">   67</span>&#160;</div>
-<div class="line"><a name="l00073"></a><span class="lineno">   73</span>&#160;    pixman_format_code_t <a class="code" href="classDisplayBuffer.html#af63545019adc5b2ba3442cb1ab933c28">GetDisplayBufferFormat</a>();</div>
-<div class="line"><a name="l00074"></a><span class="lineno">   74</span>&#160;</div>
-<div class="line"><a name="l00082"></a><span class="lineno">   82</span>&#160;    <span class="keyword">virtual</span> <span class="keywordtype">int</span> <a class="code" href="classDisplayBuffer.html#af69def957b98af4a54bf7b016a905f0a">GetScanline</a>(uint32_t x) =0;</div>
-<div class="line"><a name="l00083"></a><span class="lineno">   83</span>&#160;</div>
-<div class="line"><a name="l00084"></a><span class="lineno">   84</span>&#160;<span class="keyword">protected</span>:</div>
-<div class="line"><a name="l00088"></a><span class="lineno"><a class="line" href="classDisplayBuffer.html#a96925af7231a94996462d7134b724323">   88</a></span>&#160;    uint32_t <a class="code" href="classDisplayBuffer.html#a96925af7231a94996462d7134b724323">buf_width</a>;</div>
-<div class="line"><a name="l00092"></a><span class="lineno"><a class="line" href="classDisplayBuffer.html#a4af0b4cf7b1429b70b6a91ca72475cbb">   92</a></span>&#160;    uint32_t <a class="code" href="classDisplayBuffer.html#a4af0b4cf7b1429b70b6a91ca72475cbb">buf_height</a>;</div>
-<div class="line"><a name="l00096"></a><span class="lineno"><a class="line" href="classDisplayBuffer.html#ac6dbddd8b797e5cb5cba1cf12bf08342">   96</a></span>&#160;    uint16_t <a class="code" href="classDisplayBuffer.html#ac6dbddd8b797e5cb5cba1cf12bf08342">tile_w</a>;</div>
-<div class="line"><a name="l00100"></a><span class="lineno"><a class="line" href="classDisplayBuffer.html#af926ee948e4df8c26b579aedfa00e35b">  100</a></span>&#160;    uint16_t <a class="code" href="classDisplayBuffer.html#af926ee948e4df8c26b579aedfa00e35b">tile_h</a>;</div>
-<div class="line"><a name="l00101"></a><span class="lineno">  101</span>&#160;</div>
-<div class="line"><a name="l00105"></a><span class="lineno"><a class="line" href="classDisplayBuffer.html#aaf9d6a986bec694b5d7e1c3606e63506">  105</a></span>&#160;    <span class="keywordtype">void</span> *<a class="code" href="classDisplayBuffer.html#aaf9d6a986bec694b5d7e1c3606e63506">shm_buffer_region</a>;</div>
-<div class="line"><a name="l00109"></a><span class="lineno"><a class="line" href="classDisplayBuffer.html#a49fe1418a142f5161507151036b43dc6">  109</a></span>&#160;    pixman_format_code_t <a class="code" href="classDisplayBuffer.html#a49fe1418a142f5161507151036b43dc6">format</a>;</div>
-<div class="line"><a name="l00110"></a><span class="lineno">  110</span>&#160;};</div>
-<div class="line"><a name="l00111"></a><span class="lineno">  111</span>&#160;</div>
-<div class="line"><a name="l00115"></a><span class="lineno"><a class="line" href="structrdp__pixel.html">  115</a></span>&#160;<span class="keyword">struct </span><a class="code" href="structrdp__pixel.html">rdp_pixel</a> {</div>
-<div class="line"><a name="l00116"></a><span class="lineno">  116</span>&#160;    uint8_t r;</div>
-<div class="line"><a name="l00117"></a><span class="lineno">  117</span>&#160;    uint8_t g;</div>
-<div class="line"><a name="l00118"></a><span class="lineno">  118</span>&#160;    uint8_t b;</div>
-<div class="line"><a name="l00119"></a><span class="lineno">  119</span>&#160;    uint8_t a;</div>
-<div class="line"><a name="l00120"></a><span class="lineno">  120</span>&#160;};</div>
-<div class="line"><a name="l00121"></a><span class="lineno">  121</span>&#160;</div>
-<div class="line"><a name="l00122"></a><span class="lineno">  122</span>&#160;<span class="preprocessor">#endif //QEMU_RDP_DISPLAYBUFFER_H</span></div>
-<div class="ttc" id="classDisplayBuffer_html_a56e88d9acc1c0354b78a7591e12114b0"><div class="ttname"><a href="classDisplayBuffer.html#a56e88d9acc1c0354b78a7591e12114b0">DisplayBuffer::DisplayBuffer</a></div><div class="ttdeci">DisplayBuffer(uint32_t x, uint32_t y, void *shm)</div><div class="ttdoc">Creates a new DisplayBuffer class. </div><div class="ttdef"><b>Definition:</b> DisplayBuffer.cpp:7</div></div>
-<div class="ttc" id="classDisplayBuffer_html_ac6dbddd8b797e5cb5cba1cf12bf08342"><div class="ttname"><a href="classDisplayBuffer.html#ac6dbddd8b797e5cb5cba1cf12bf08342">DisplayBuffer::tile_w</a></div><div class="ttdeci">uint16_t tile_w</div><div class="ttdoc">Width of the tile region enclosing the framebuffer. </div><div class="ttdef"><b>Definition:</b> DisplayBuffer.h:96</div></div>
-<div class="ttc" id="classDisplayBuffer_html_a412267d65d0dccfec198b059337d53e8"><div class="ttname"><a href="classDisplayBuffer.html#a412267d65d0dccfec198b059337d53e8">DisplayBuffer::GetTileRegionHeight</a></div><div class="ttdeci">uint32_t GetTileRegionHeight()</div><div class="ttdoc">Gets the width of the tile region enclosing the framebuffer. </div><div class="ttdef"><b>Definition:</b> DisplayBuffer.cpp:28</div></div>
-<div class="ttc" id="classDisplayBuffer_html_a945caad151c932bd7ecc5e4cb684b7a2"><div class="ttname"><a href="classDisplayBuffer.html#a945caad151c932bd7ecc5e4cb684b7a2">DisplayBuffer::SetShmRegion</a></div><div class="ttdeci">void SetShmRegion(void *region)</div><div class="ttdoc">Sets the internal shared memory reference to the value passed in. </div><div class="ttdef"><b>Definition:</b> DisplayBuffer.cpp:33</div></div>
-<div class="ttc" id="classDisplayBuffer_html_a4af0b4cf7b1429b70b6a91ca72475cbb"><div class="ttname"><a href="classDisplayBuffer.html#a4af0b4cf7b1429b70b6a91ca72475cbb">DisplayBuffer::buf_height</a></div><div class="ttdeci">uint32_t buf_height</div><div class="ttdoc">Height of the framebuffer in px. </div><div class="ttdef"><b>Definition:</b> DisplayBuffer.h:92</div></div>
-<div class="ttc" id="classDisplayBuffer_html"><div class="ttname"><a href="classDisplayBuffer.html">DisplayBuffer</a></div><div class="ttdoc">Base class to hold and manage framebuffers for RDPPeers. </div><div class="ttdef"><b>Definition:</b> DisplayBuffer.h:24</div></div>
+<div class="fragment"><div class="line"><a name="l00001"></a><span class="lineno">    1</span>&#160;<span class="comment">/*</span></div>
+<div class="line"><a name="l00002"></a><span class="lineno">    2</span>&#160;<span class="comment"> * Copyright 2016 Datto Inc.</span></div>
+<div class="line"><a name="l00003"></a><span class="lineno">    3</span>&#160;<span class="comment"> *</span></div>
+<div class="line"><a name="l00004"></a><span class="lineno">    4</span>&#160;<span class="comment"> * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);</span></div>
+<div class="line"><a name="l00005"></a><span class="lineno">    5</span>&#160;<span class="comment"> * you may not use this file except in compliance with the License.</span></div>
+<div class="line"><a name="l00006"></a><span class="lineno">    6</span>&#160;<span class="comment"> * You may obtain a copy of the License at</span></div>
+<div class="line"><a name="l00007"></a><span class="lineno">    7</span>&#160;<span class="comment"> *</span></div>
+<div class="line"><a name="l00008"></a><span class="lineno">    8</span>&#160;<span class="comment"> *  http://www.apache.org/licenses/LICENSE-2.0</span></div>
+<div class="line"><a name="l00009"></a><span class="lineno">    9</span>&#160;<span class="comment"> *</span></div>
+<div class="line"><a name="l00010"></a><span class="lineno">   10</span>&#160;<span class="comment"> * Unless required by applicable law or agreed to in writing, software</span></div>
+<div class="line"><a name="l00011"></a><span class="lineno">   11</span>&#160;<span class="comment"> * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,</span></div>
+<div class="line"><a name="l00012"></a><span class="lineno">   12</span>&#160;<span class="comment"> * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.</span></div>
+<div class="line"><a name="l00013"></a><span class="lineno">   13</span>&#160;<span class="comment"> * See the License for the specific language governing permissions and</span></div>
+<div class="line"><a name="l00014"></a><span class="lineno">   14</span>&#160;<span class="comment"> * limitations under the License.</span></div>
+<div class="line"><a name="l00015"></a><span class="lineno">   15</span>&#160;<span class="comment"> */</span></div>
+<div class="line"><a name="l00016"></a><span class="lineno">   16</span>&#160;</div>
+<div class="line"><a name="l00017"></a><span class="lineno">   17</span>&#160;<span class="preprocessor">#ifndef QEMU_RDP_DISPLAYBUFFER_H</span></div>
+<div class="line"><a name="l00018"></a><span class="lineno">   18</span>&#160;<span class="preprocessor">#define QEMU_RDP_DISPLAYBUFFER_H</span></div>
+<div class="line"><a name="l00019"></a><span class="lineno">   19</span>&#160;</div>
+<div class="line"><a name="l00020"></a><span class="lineno">   20</span>&#160;<span class="preprocessor">#include &lt;cstdint&gt;</span></div>
+<div class="line"><a name="l00021"></a><span class="lineno">   21</span>&#160;<span class="preprocessor">#include &lt;tuple&gt;</span></div>
+<div class="line"><a name="l00022"></a><span class="lineno">   22</span>&#160;</div>
+<div class="line"><a name="l00023"></a><span class="lineno">   23</span>&#160;<span class="preprocessor">#include &lt;pixman.h&gt;</span></div>
+<div class="line"><a name="l00024"></a><span class="lineno">   24</span>&#160;</div>
+<div class="line"><a name="l00025"></a><span class="lineno">   25</span>&#160;</div>
+<div class="line"><a name="l00026"></a><span class="lineno">   26</span>&#160;<span class="preprocessor">#define ALIGN_SCREEN(size, align) ((size + align - 1) &amp; (~(align - 1)))</span></div>
+<div class="line"><a name="l00027"></a><span class="lineno">   27</span>&#160;<span class="preprocessor">#define PIXMAN_GET_R(f) ( (f &amp; 0x00ff0000) &gt;&gt; 16 )</span></div>
+<div class="line"><a name="l00028"></a><span class="lineno">   28</span>&#160;<span class="preprocessor">#define PIXMAN_GET_G(f) ( (f &amp; 0x0000ff00) &gt;&gt; 8 )</span></div>
+<div class="line"><a name="l00029"></a><span class="lineno">   29</span>&#160;<span class="preprocessor">#define PIXMAN_GET_B(f) ( (f &amp; 0x000000ff) )</span></div>
+<div class="line"><a name="l00030"></a><span class="lineno">   30</span>&#160;</div>
+<div class="line"><a name="l00036"></a><span class="lineno"><a class="line" href="classDisplayBuffer.html">   36</a></span>&#160;<span class="keyword">class </span><a class="code" href="classDisplayBuffer.html">DisplayBuffer</a> {</div>
+<div class="line"><a name="l00037"></a><span class="lineno">   37</span>&#160;<span class="keyword">public</span>:</div>
+<div class="line"><a name="l00045"></a><span class="lineno">   45</span>&#160;    <a class="code" href="classDisplayBuffer.html#a56e88d9acc1c0354b78a7591e12114b0">DisplayBuffer</a>(uint32_t x, uint32_t y, <span class="keywordtype">void</span> *shm);</div>
+<div class="line"><a name="l00046"></a><span class="lineno">   46</span>&#160;    <span class="keyword">virtual</span> ~<a class="code" href="classDisplayBuffer.html">DisplayBuffer</a>() {};</div>
+<div class="line"><a name="l00047"></a><span class="lineno">   47</span>&#160;</div>
+<div class="line"><a name="l00057"></a><span class="lineno">   57</span>&#160;    <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="classDisplayBuffer.html#a8f06ab2169da52acd3ca261f19c34cbf">FillDirtyRegion</a>(uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint8_t *dirty) =0;</div>
+<div class="line"><a name="l00058"></a><span class="lineno">   58</span>&#160;</div>
+<div class="line"><a name="l00064"></a><span class="lineno">   64</span>&#160;    uint32_t <a class="code" href="classDisplayBuffer.html#a412267d65d0dccfec198b059337d53e8">GetTileRegionHeight</a>();</div>
+<div class="line"><a name="l00065"></a><span class="lineno">   65</span>&#160;</div>
+<div class="line"><a name="l00071"></a><span class="lineno">   71</span>&#160;    uint32_t <a class="code" href="classDisplayBuffer.html#a46ba4ac2643f346a814b9216d0206c03">GetTileRegionWidth</a>();</div>
+<div class="line"><a name="l00072"></a><span class="lineno">   72</span>&#160;</div>
+<div class="line"><a name="l00078"></a><span class="lineno">   78</span>&#160;    <span class="keywordtype">void</span> <a class="code" href="classDisplayBuffer.html#a945caad151c932bd7ecc5e4cb684b7a2">SetShmRegion</a>(<span class="keywordtype">void</span> *region);</div>
+<div class="line"><a name="l00079"></a><span class="lineno">   79</span>&#160;</div>
+<div class="line"><a name="l00085"></a><span class="lineno">   85</span>&#160;    pixman_format_code_t <a class="code" href="classDisplayBuffer.html#af63545019adc5b2ba3442cb1ab933c28">GetDisplayBufferFormat</a>();</div>
+<div class="line"><a name="l00086"></a><span class="lineno">   86</span>&#160;</div>
+<div class="line"><a name="l00094"></a><span class="lineno">   94</span>&#160;    <span class="keyword">virtual</span> <span class="keywordtype">int</span> <a class="code" href="classDisplayBuffer.html#af69def957b98af4a54bf7b016a905f0a">GetScanline</a>(uint32_t x) =0;</div>
+<div class="line"><a name="l00095"></a><span class="lineno">   95</span>&#160;</div>
+<div class="line"><a name="l00096"></a><span class="lineno">   96</span>&#160;<span class="keyword">protected</span>:</div>
+<div class="line"><a name="l00100"></a><span class="lineno"><a class="line" href="classDisplayBuffer.html#a96925af7231a94996462d7134b724323">  100</a></span>&#160;    uint32_t <a class="code" href="classDisplayBuffer.html#a96925af7231a94996462d7134b724323">buf_width</a>;</div>
+<div class="line"><a name="l00104"></a><span class="lineno"><a class="line" href="classDisplayBuffer.html#a4af0b4cf7b1429b70b6a91ca72475cbb">  104</a></span>&#160;    uint32_t <a class="code" href="classDisplayBuffer.html#a4af0b4cf7b1429b70b6a91ca72475cbb">buf_height</a>;</div>
+<div class="line"><a name="l00108"></a><span class="lineno"><a class="line" href="classDisplayBuffer.html#ac6dbddd8b797e5cb5cba1cf12bf08342">  108</a></span>&#160;    uint16_t <a class="code" href="classDisplayBuffer.html#ac6dbddd8b797e5cb5cba1cf12bf08342">tile_w</a>;</div>
+<div class="line"><a name="l00112"></a><span class="lineno"><a class="line" href="classDisplayBuffer.html#af926ee948e4df8c26b579aedfa00e35b">  112</a></span>&#160;    uint16_t <a class="code" href="classDisplayBuffer.html#af926ee948e4df8c26b579aedfa00e35b">tile_h</a>;</div>
+<div class="line"><a name="l00113"></a><span class="lineno">  113</span>&#160;</div>
+<div class="line"><a name="l00117"></a><span class="lineno"><a class="line" href="classDisplayBuffer.html#aaf9d6a986bec694b5d7e1c3606e63506">  117</a></span>&#160;    <span class="keywordtype">void</span> *<a class="code" href="classDisplayBuffer.html#aaf9d6a986bec694b5d7e1c3606e63506">shm_buffer_region</a>;</div>
+<div class="line"><a name="l00121"></a><span class="lineno"><a class="line" href="classDisplayBuffer.html#a49fe1418a142f5161507151036b43dc6">  121</a></span>&#160;    pixman_format_code_t <a class="code" href="classDisplayBuffer.html#a49fe1418a142f5161507151036b43dc6">format</a>;</div>
+<div class="line"><a name="l00122"></a><span class="lineno">  122</span>&#160;};</div>
+<div class="line"><a name="l00123"></a><span class="lineno">  123</span>&#160;</div>
+<div class="line"><a name="l00127"></a><span class="lineno"><a class="line" href="structrdp__pixel.html">  127</a></span>&#160;<span class="keyword">struct </span><a class="code" href="structrdp__pixel.html">rdp_pixel</a> {</div>
+<div class="line"><a name="l00128"></a><span class="lineno">  128</span>&#160;    uint8_t r;</div>
+<div class="line"><a name="l00129"></a><span class="lineno">  129</span>&#160;    uint8_t g;</div>
+<div class="line"><a name="l00130"></a><span class="lineno">  130</span>&#160;    uint8_t b;</div>
+<div class="line"><a name="l00131"></a><span class="lineno">  131</span>&#160;    uint8_t a;</div>
+<div class="line"><a name="l00132"></a><span class="lineno">  132</span>&#160;};</div>
+<div class="line"><a name="l00133"></a><span class="lineno">  133</span>&#160;</div>
+<div class="line"><a name="l00134"></a><span class="lineno">  134</span>&#160;<span class="preprocessor">#endif //QEMU_RDP_DISPLAYBUFFER_H</span></div>
+<div class="ttc" id="classDisplayBuffer_html_a56e88d9acc1c0354b78a7591e12114b0"><div class="ttname"><a href="classDisplayBuffer.html#a56e88d9acc1c0354b78a7591e12114b0">DisplayBuffer::DisplayBuffer</a></div><div class="ttdeci">DisplayBuffer(uint32_t x, uint32_t y, void *shm)</div><div class="ttdoc">Creates a new DisplayBuffer class. </div><div class="ttdef"><b>Definition:</b> DisplayBuffer.cpp:19</div></div>
+<div class="ttc" id="classDisplayBuffer_html_ac6dbddd8b797e5cb5cba1cf12bf08342"><div class="ttname"><a href="classDisplayBuffer.html#ac6dbddd8b797e5cb5cba1cf12bf08342">DisplayBuffer::tile_w</a></div><div class="ttdeci">uint16_t tile_w</div><div class="ttdoc">Width of the tile region enclosing the framebuffer. </div><div class="ttdef"><b>Definition:</b> DisplayBuffer.h:108</div></div>
+<div class="ttc" id="classDisplayBuffer_html_a412267d65d0dccfec198b059337d53e8"><div class="ttname"><a href="classDisplayBuffer.html#a412267d65d0dccfec198b059337d53e8">DisplayBuffer::GetTileRegionHeight</a></div><div class="ttdeci">uint32_t GetTileRegionHeight()</div><div class="ttdoc">Gets the width of the tile region enclosing the framebuffer. </div><div class="ttdef"><b>Definition:</b> DisplayBuffer.cpp:40</div></div>
+<div class="ttc" id="classDisplayBuffer_html_a945caad151c932bd7ecc5e4cb684b7a2"><div class="ttname"><a href="classDisplayBuffer.html#a945caad151c932bd7ecc5e4cb684b7a2">DisplayBuffer::SetShmRegion</a></div><div class="ttdeci">void SetShmRegion(void *region)</div><div class="ttdoc">Sets the internal shared memory reference to the value passed in. </div><div class="ttdef"><b>Definition:</b> DisplayBuffer.cpp:45</div></div>
+<div class="ttc" id="classDisplayBuffer_html_a4af0b4cf7b1429b70b6a91ca72475cbb"><div class="ttname"><a href="classDisplayBuffer.html#a4af0b4cf7b1429b70b6a91ca72475cbb">DisplayBuffer::buf_height</a></div><div class="ttdeci">uint32_t buf_height</div><div class="ttdoc">Height of the framebuffer in px. </div><div class="ttdef"><b>Definition:</b> DisplayBuffer.h:104</div></div>
+<div class="ttc" id="classDisplayBuffer_html"><div class="ttname"><a href="classDisplayBuffer.html">DisplayBuffer</a></div><div class="ttdoc">Base class to hold and manage framebuffers for RDPPeers. </div><div class="ttdef"><b>Definition:</b> DisplayBuffer.h:36</div></div>
 <div class="ttc" id="classDisplayBuffer_html_a8f06ab2169da52acd3ca261f19c34cbf"><div class="ttname"><a href="classDisplayBuffer.html#a8f06ab2169da52acd3ca261f19c34cbf">DisplayBuffer::FillDirtyRegion</a></div><div class="ttdeci">virtual void FillDirtyRegion(uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint8_t *dirty)=0</div><div class="ttdoc">Fills a given buffer with properly-formatted pixel data from the framebuffer. </div></div>
-<div class="ttc" id="structrdp__pixel_html"><div class="ttname"><a href="structrdp__pixel.html">rdp_pixel</a></div><div class="ttdoc">Struct modeling the subpixel layout of an RGBA framebuffer. </div><div class="ttdef"><b>Definition:</b> DisplayBuffer.h:115</div></div>
-<div class="ttc" id="classDisplayBuffer_html_af63545019adc5b2ba3442cb1ab933c28"><div class="ttname"><a href="classDisplayBuffer.html#af63545019adc5b2ba3442cb1ab933c28">DisplayBuffer::GetDisplayBufferFormat</a></div><div class="ttdeci">pixman_format_code_t GetDisplayBufferFormat()</div><div class="ttdoc">Get the pixel format of the frame buffer. </div><div class="ttdef"><b>Definition:</b> DisplayBuffer.cpp:18</div></div>
-<div class="ttc" id="classDisplayBuffer_html_af926ee948e4df8c26b579aedfa00e35b"><div class="ttname"><a href="classDisplayBuffer.html#af926ee948e4df8c26b579aedfa00e35b">DisplayBuffer::tile_h</a></div><div class="ttdeci">uint16_t tile_h</div><div class="ttdoc">Height of the tile region enclosing the framebuffer. </div><div class="ttdef"><b>Definition:</b> DisplayBuffer.h:100</div></div>
-<div class="ttc" id="classDisplayBuffer_html_a49fe1418a142f5161507151036b43dc6"><div class="ttname"><a href="classDisplayBuffer.html#a49fe1418a142f5161507151036b43dc6">DisplayBuffer::format</a></div><div class="ttdeci">pixman_format_code_t format</div><div class="ttdoc">The subpixel layout of the framebuffer. </div><div class="ttdef"><b>Definition:</b> DisplayBuffer.h:109</div></div>
-<div class="ttc" id="classDisplayBuffer_html_aaf9d6a986bec694b5d7e1c3606e63506"><div class="ttname"><a href="classDisplayBuffer.html#aaf9d6a986bec694b5d7e1c3606e63506">DisplayBuffer::shm_buffer_region</a></div><div class="ttdeci">void * shm_buffer_region</div><div class="ttdoc">Pointer to the shared memory region containing the framebuffer. </div><div class="ttdef"><b>Definition:</b> DisplayBuffer.h:105</div></div>
+<div class="ttc" id="structrdp__pixel_html"><div class="ttname"><a href="structrdp__pixel.html">rdp_pixel</a></div><div class="ttdoc">Struct modeling the subpixel layout of an RGBA framebuffer. </div><div class="ttdef"><b>Definition:</b> DisplayBuffer.h:127</div></div>
+<div class="ttc" id="classDisplayBuffer_html_af63545019adc5b2ba3442cb1ab933c28"><div class="ttname"><a href="classDisplayBuffer.html#af63545019adc5b2ba3442cb1ab933c28">DisplayBuffer::GetDisplayBufferFormat</a></div><div class="ttdeci">pixman_format_code_t GetDisplayBufferFormat()</div><div class="ttdoc">Get the pixel format of the frame buffer. </div><div class="ttdef"><b>Definition:</b> DisplayBuffer.cpp:30</div></div>
+<div class="ttc" id="classDisplayBuffer_html_af926ee948e4df8c26b579aedfa00e35b"><div class="ttname"><a href="classDisplayBuffer.html#af926ee948e4df8c26b579aedfa00e35b">DisplayBuffer::tile_h</a></div><div class="ttdeci">uint16_t tile_h</div><div class="ttdoc">Height of the tile region enclosing the framebuffer. </div><div class="ttdef"><b>Definition:</b> DisplayBuffer.h:112</div></div>
+<div class="ttc" id="classDisplayBuffer_html_a49fe1418a142f5161507151036b43dc6"><div class="ttname"><a href="classDisplayBuffer.html#a49fe1418a142f5161507151036b43dc6">DisplayBuffer::format</a></div><div class="ttdeci">pixman_format_code_t format</div><div class="ttdoc">The subpixel layout of the framebuffer. </div><div class="ttdef"><b>Definition:</b> DisplayBuffer.h:121</div></div>
+<div class="ttc" id="classDisplayBuffer_html_aaf9d6a986bec694b5d7e1c3606e63506"><div class="ttname"><a href="classDisplayBuffer.html#aaf9d6a986bec694b5d7e1c3606e63506">DisplayBuffer::shm_buffer_region</a></div><div class="ttdeci">void * shm_buffer_region</div><div class="ttdoc">Pointer to the shared memory region containing the framebuffer. </div><div class="ttdef"><b>Definition:</b> DisplayBuffer.h:117</div></div>
 <div class="ttc" id="classDisplayBuffer_html_af69def957b98af4a54bf7b016a905f0a"><div class="ttname"><a href="classDisplayBuffer.html#af69def957b98af4a54bf7b016a905f0a">DisplayBuffer::GetScanline</a></div><div class="ttdeci">virtual int GetScanline(uint32_t x)=0</div><div class="ttdoc">Get the scanline of a region given its with. </div></div>
-<div class="ttc" id="classDisplayBuffer_html_a96925af7231a94996462d7134b724323"><div class="ttname"><a href="classDisplayBuffer.html#a96925af7231a94996462d7134b724323">DisplayBuffer::buf_width</a></div><div class="ttdeci">uint32_t buf_width</div><div class="ttdoc">Width of the framebuffer in px. </div><div class="ttdef"><b>Definition:</b> DisplayBuffer.h:88</div></div>
-<div class="ttc" id="classDisplayBuffer_html_a46ba4ac2643f346a814b9216d0206c03"><div class="ttname"><a href="classDisplayBuffer.html#a46ba4ac2643f346a814b9216d0206c03">DisplayBuffer::GetTileRegionWidth</a></div><div class="ttdeci">uint32_t GetTileRegionWidth()</div><div class="ttdoc">Gets the height of the tile region enclosing the framebuffer. </div><div class="ttdef"><b>Definition:</b> DisplayBuffer.cpp:23</div></div>
+<div class="ttc" id="classDisplayBuffer_html_a96925af7231a94996462d7134b724323"><div class="ttname"><a href="classDisplayBuffer.html#a96925af7231a94996462d7134b724323">DisplayBuffer::buf_width</a></div><div class="ttdeci">uint32_t buf_width</div><div class="ttdoc">Width of the framebuffer in px. </div><div class="ttdef"><b>Definition:</b> DisplayBuffer.h:100</div></div>
+<div class="ttc" id="classDisplayBuffer_html_a46ba4ac2643f346a814b9216d0206c03"><div class="ttname"><a href="classDisplayBuffer.html#a46ba4ac2643f346a814b9216d0206c03">DisplayBuffer::GetTileRegionWidth</a></div><div class="ttdeci">uint32_t GetTileRegionWidth()</div><div class="ttdoc">Gets the height of the tile region enclosing the framebuffer. </div><div class="ttdef"><b>Definition:</b> DisplayBuffer.cpp:35</div></div>
 </div><!-- fragment --></div><!-- contents -->
 </div><!-- doc-content -->
 <!-- start footer part -->

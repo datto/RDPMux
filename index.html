@@ -104,23 +104,29 @@ $(document).ready(function(){initNavTree('index.html','');});
 <div class="contents">
 <div class="textblock"><h2>Table of contents</h2>
 <ol type="1">
-<li>Introduction</li>
-<li>Rationale</li>
-<li>Protocol</li>
-<li>FAQ</li>
+<li><a href="#introduction">Introduction</a></li>
+<li><a href="#rationale">Rationale</a></li>
+<li><a href="#protocol">Protocol</a></li>
+<li><a href="#faq">FAQ</a></li>
 </ol>
 <h2>Introduction</h2>
 <p>RDPMux provides multiplexed RDP servers for virtual machines.</p>
 <p>It communicates with VMs via librdpmux, which implements the communication protocol and exposes an API for hypervisors to hook into. More information about the communication protocol is in the PROTOCOL section of this document.</p>
 <p>For build and installation instructions, see ./INSTALL.md "INSTALL.md".</p>
+<p>If you'd like to try RDPMux out, we have a reference implementation of the librdpmux integration for QEMU. Since the librdpmux integration code has not been merged into QEMU upstream (yet!), <a href="https://github.com/datto/qemu/tree/librdpmux-integration">get our custom fork here</a>.</p>
+<p>For usage instructions, see ./USAGE.md "USAGE.md".</p>
 <h2>Rationale</h2>
 <p>RDPMux was initially intended as a project to build support for the FreeRDP library into QEMU, in much the same way as SPICE. However, licensing incompatibilities necessitated the decision to split the RDP server functionality into its own project. This also has the advantage of making RDPMux more general than just providing an RDP frontend for QEMU virtual machines.</p>
 <h2>Protocol</h2>
 <p>For complete documentation on the wire protocol used to communicate with the hypervisors, see the documentation in <a href="https://github.com/datto/librdpmux">librdpmux</a>.</p>
-<p>For information on the RDP protocol itself, refer to <a href="https://github.com/freerdp/FreeRDP">FreeRDP</a>.</p>
+<p>For information on the RDP protocol itself, refer to <a href="https://github.com/freerdp/FreeRDP">FreeRDP</a> and <a href="https://msdn.microsoft.com/en-us/library/cc240445.aspx">Microsoft's own RDP documentation</a>.</p>
 <h2>FAQ</h2>
 <p><b>Why didn't you build this into QEMU the way SPICE does it?</b></p>
-<p>QEMU and FreeRDP use incompatible licenses. QEMU would have never accepted it upstream.</p>
+<p>Several reasons. In no particular order:</p><ul>
+<li>This code links against FreeRDP, which is licensed incompatibly to QEMU. Upstream would never have accepted this code on that basis alone.</li>
+<li>By shipping this code in two logical pieces, it makes it easier for us to ship updates and fixes in a non-disruptive manner.</li>
+<li>SPICE actually doesn't build their code directly into QEMU; the SPICE "server" (that interfaces directly with the VM guest) is implemented as a library, and clients are obviously standalone applications.</li>
+</ul>
 <p><b>Why are you using Nanomsg? That project seems to be abandoned!</b></p>
 <p>Well, possibly. The situation with Nanomsg is still up in the air. As it stands, we don't use Nanomsg for very much more than a small full-duplex socket library anyway, so it's a fairly minimal concern to us if it's unsupported. </p>
 </div></div><!-- contents -->

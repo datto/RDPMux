@@ -1,5 +1,6 @@
 var searchData=
 [
+  ['setdbusconnection',['setDBusConnection',['../classRDPServerWorker.html#ad651ad757cf14b79892b8582572385f5',1,'RDPServerWorker']]],
   ['setshmregion',['SetShmRegion',['../classDisplayBuffer.html#a945caad151c932bd7ecc5e4cb684b7a2',1,'DisplayBuffer']]],
   ['shm_5fbuffer',['shm_buffer',['../classRDPListener.html#a2aaffa65988b4ea4d8021cb0cee994fe',1,'RDPListener']]],
   ['shm_5fbuffer_5fregion',['shm_buffer_region',['../classDisplayBuffer.html#aaf9d6a986bec694b5d7e1c3606e63506',1,'DisplayBuffer']]],

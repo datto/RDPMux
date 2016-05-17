@@ -107,114 +107,126 @@ $(document).ready(function(){initNavTree('RDPPeer_8h_source.html','');});
 <div class="title">RDPPeer.h</div>  </div>
 </div><!--header-->
 <div class="contents">
-<div class="fragment"><div class="line"><a name="l00001"></a><span class="lineno">    1</span>&#160;<span class="comment">//</span></div>
-<div class="line"><a name="l00002"></a><span class="lineno">    2</span>&#160;<span class="comment">// Created by sramanujam on 9/15/15.</span></div>
-<div class="line"><a name="l00003"></a><span class="lineno">    3</span>&#160;<span class="comment">//</span></div>
-<div class="line"><a name="l00004"></a><span class="lineno">    4</span>&#160;</div>
-<div class="line"><a name="l00005"></a><span class="lineno">    5</span>&#160;<span class="preprocessor">#ifndef QEMU_RDP_RDPPEER_H</span></div>
-<div class="line"><a name="l00006"></a><span class="lineno">    6</span>&#160;<span class="preprocessor">#define QEMU_RDP_RDPPEER_H</span></div>
-<div class="line"><a name="l00007"></a><span class="lineno">    7</span>&#160;</div>
-<div class="line"><a name="l00008"></a><span class="lineno">    8</span>&#160;<span class="preprocessor">#include &lt;freerdp/freerdp.h&gt;</span></div>
-<div class="line"><a name="l00009"></a><span class="lineno">    9</span>&#160;<span class="preprocessor">#include &lt;freerdp/peer.h&gt;</span></div>
-<div class="line"><a name="l00010"></a><span class="lineno">   10</span>&#160;<span class="preprocessor">#include &lt;freerdp/server/audin.h&gt;</span></div>
-<div class="line"><a name="l00011"></a><span class="lineno">   11</span>&#160;<span class="preprocessor">#include &lt;freerdp/server/rdpsnd.h&gt;</span></div>
-<div class="line"><a name="l00012"></a><span class="lineno">   12</span>&#160;</div>
-<div class="line"><a name="l00013"></a><span class="lineno">   13</span>&#160;<span class="preprocessor">#include &quot;RDPListener.h&quot;</span></div>
-<div class="line"><a name="l00014"></a><span class="lineno">   14</span>&#160;<span class="preprocessor">#include &quot;DisplayBuffer.h&quot;</span></div>
-<div class="line"><a name="l00015"></a><span class="lineno">   15</span>&#160;<span class="preprocessor">#include &quot;nanomsg.h&quot;</span></div>
+<div class="fragment"><div class="line"><a name="l00001"></a><span class="lineno">    1</span>&#160;<span class="comment">/*</span></div>
+<div class="line"><a name="l00002"></a><span class="lineno">    2</span>&#160;<span class="comment"> * Copyright 2016 Datto Inc.</span></div>
+<div class="line"><a name="l00003"></a><span class="lineno">    3</span>&#160;<span class="comment"> *</span></div>
+<div class="line"><a name="l00004"></a><span class="lineno">    4</span>&#160;<span class="comment"> * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);</span></div>
+<div class="line"><a name="l00005"></a><span class="lineno">    5</span>&#160;<span class="comment"> * you may not use this file except in compliance with the License.</span></div>
+<div class="line"><a name="l00006"></a><span class="lineno">    6</span>&#160;<span class="comment"> * You may obtain a copy of the License at</span></div>
+<div class="line"><a name="l00007"></a><span class="lineno">    7</span>&#160;<span class="comment"> *</span></div>
+<div class="line"><a name="l00008"></a><span class="lineno">    8</span>&#160;<span class="comment"> *  http://www.apache.org/licenses/LICENSE-2.0</span></div>
+<div class="line"><a name="l00009"></a><span class="lineno">    9</span>&#160;<span class="comment"> *</span></div>
+<div class="line"><a name="l00010"></a><span class="lineno">   10</span>&#160;<span class="comment"> * Unless required by applicable law or agreed to in writing, software</span></div>
+<div class="line"><a name="l00011"></a><span class="lineno">   11</span>&#160;<span class="comment"> * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,</span></div>
+<div class="line"><a name="l00012"></a><span class="lineno">   12</span>&#160;<span class="comment"> * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.</span></div>
+<div class="line"><a name="l00013"></a><span class="lineno">   13</span>&#160;<span class="comment"> * See the License for the specific language governing permissions and</span></div>
+<div class="line"><a name="l00014"></a><span class="lineno">   14</span>&#160;<span class="comment"> * limitations under the License.</span></div>
+<div class="line"><a name="l00015"></a><span class="lineno">   15</span>&#160;<span class="comment"> */</span></div>
 <div class="line"><a name="l00016"></a><span class="lineno">   16</span>&#160;</div>
-<div class="line"><a name="l00023"></a><span class="lineno">   23</span>&#160;<span class="keyword">enum</span> pixel_formats {</div>
-<div class="line"><a name="l00024"></a><span class="lineno">   24</span>&#160;    PIXEL_FORMAT_r8g8b8a8,</div>
-<div class="line"><a name="l00025"></a><span class="lineno">   25</span>&#160;    PIXEL_FORMAT_a8r8g8b8,</div>
-<div class="line"><a name="l00026"></a><span class="lineno">   26</span>&#160;    PIXEL_FORMAT_r8g8b8,</div>
-<div class="line"><a name="l00027"></a><span class="lineno">   27</span>&#160;    PIXEL_FORMAT_b8g8r8,</div>
-<div class="line"><a name="l00028"></a><span class="lineno">   28</span>&#160;};</div>
-<div class="line"><a name="l00029"></a><span class="lineno">   29</span>&#160;<span class="keyword">typedef</span> <span class="keyword">enum</span> pixel_formats PIXEL_FORMAT;</div>
-<div class="line"><a name="l00030"></a><span class="lineno">   30</span>&#160;</div>
-<div class="line"><a name="l00031"></a><span class="lineno">   31</span>&#160;<span class="keyword">class </span><a class="code" href="classRDPListener.html">RDPListener</a>; <span class="comment">// I&#39;m very bad at organizing C++ code</span></div>
-<div class="line"><a name="l00032"></a><span class="lineno">   32</span>&#160;</div>
-<div class="line"><a name="l00039"></a><span class="lineno"><a class="line" href="classRDPPeer.html">   39</a></span>&#160;<span class="keyword">class </span><a class="code" href="classRDPPeer.html">RDPPeer</a></div>
-<div class="line"><a name="l00040"></a><span class="lineno">   40</span>&#160;{</div>
-<div class="line"><a name="l00041"></a><span class="lineno">   41</span>&#160;<span class="keyword">public</span>:</div>
-<div class="line"><a name="l00046"></a><span class="lineno">   46</span>&#160;    <a class="code" href="classRDPPeer.html#a79dcfd6f28a47b7d1b7d71750555c4e1">RDPPeer</a>(std::tuple&lt;freerdp_peer*, nn::socket*, RDPListener *&gt;);</div>
-<div class="line"><a name="l00047"></a><span class="lineno">   47</span>&#160;</div>
-<div class="line"><a name="l00051"></a><span class="lineno">   51</span>&#160;    <a class="code" href="classRDPPeer.html#a6166bab4575ad8fadbb9b11ecd35ae9b">~RDPPeer</a>();</div>
-<div class="line"><a name="l00052"></a><span class="lineno">   52</span>&#160;</div>
-<div class="line"><a name="l00061"></a><span class="lineno">   61</span>&#160;    <span class="keyword">static</span> <span class="keywordtype">void</span> *<a class="code" href="classRDPPeer.html#a798ad03f1fefc72326a0e199c14cc5ba">PeerThread</a>(<span class="keywordtype">void</span> *arg);</div>
-<div class="line"><a name="l00062"></a><span class="lineno">   62</span>&#160;</div>
-<div class="line"><a name="l00066"></a><span class="lineno">   66</span>&#160;    <span class="keywordtype">void</span> <a class="code" href="classRDPPeer.html#a25541bcbf5fa6c33e6949d612d724ae2">RunThread</a>(freerdp_peer *client);</div>
-<div class="line"><a name="l00067"></a><span class="lineno">   67</span>&#160;</div>
-<div class="line"><a name="l00075"></a><span class="lineno">   75</span>&#160;    <span class="keywordtype">void</span> <a class="code" href="classRDPPeer.html#ab9ddef2f53e08eaaf8265e85112d7762">ProcessMouseMsg</a>(uint16_t flags, uint16_t x, uint16_t y);</div>
-<div class="line"><a name="l00076"></a><span class="lineno">   76</span>&#160;</div>
-<div class="line"><a name="l00083"></a><span class="lineno">   83</span>&#160;    <span class="keywordtype">void</span> <a class="code" href="classRDPPeer.html#ab520bc5271ed0e7b8d19a9ea9e46372b">ProcessKeyboardMsg</a>(uint16_t flags, uint16_t keycode);</div>
-<div class="line"><a name="l00084"></a><span class="lineno">   84</span>&#160;</div>
-<div class="line"><a name="l00093"></a><span class="lineno">   93</span>&#160;    <span class="keywordtype">void</span> <a class="code" href="classRDPPeer.html#a4193357a049e96c32662b99537db75d0">PartialDisplayUpdate</a>(uint32_t x_coord, uint32_t y_coord, uint32_t width, uint32_t height);</div>
-<div class="line"><a name="l00094"></a><span class="lineno">   94</span>&#160;</div>
-<div class="line"><a name="l00101"></a><span class="lineno">  101</span>&#160;    <span class="keywordtype">void</span> <a class="code" href="classRDPPeer.html#a489a0833bc256165a7d4637f89bcb028">FullDisplayUpdate</a>(pixman_format_code_t f);</div>
-<div class="line"><a name="l00102"></a><span class="lineno">  102</span>&#160;</div>
-<div class="line"><a name="l00108"></a><span class="lineno">  108</span>&#160;    <span class="keywordtype">size_t</span> <a class="code" href="classRDPPeer.html#ab6133e212a70aac549c933e6a7970e4c">GetSurfaceWidth</a>();</div>
-<div class="line"><a name="l00109"></a><span class="lineno">  109</span>&#160;</div>
-<div class="line"><a name="l00115"></a><span class="lineno">  115</span>&#160;    <span class="keywordtype">size_t</span> <a class="code" href="classRDPPeer.html#a03c0c56cff112c8df9f2d479abb12bed">GetSurfaceHeight</a>();</div>
-<div class="line"><a name="l00116"></a><span class="lineno">  116</span>&#160;</div>
-<div class="line"><a name="l00122"></a><span class="lineno">  122</span>&#160;    <a class="code" href="classRDPListener.html">RDPListener</a> *<a class="code" href="classRDPPeer.html#aae701fe6639205d54411dd06ca027db1">GetListener</a>();</div>
-<div class="line"><a name="l00123"></a><span class="lineno">  123</span>&#160;</div>
-<div class="line"><a name="l00124"></a><span class="lineno">  124</span>&#160;<span class="keyword">private</span>:</div>
-<div class="line"><a name="l00125"></a><span class="lineno">  125</span>&#160;    freerdp_peer *client;</div>
-<div class="line"><a name="l00126"></a><span class="lineno">  126</span>&#160;    std::tuple&lt;freerdp_peer*, nn::socket*, RDPListener *&gt; tuple;</div>
-<div class="line"><a name="l00127"></a><span class="lineno">  127</span>&#160;    <span class="keywordtype">void</span> *shm_buffer_region;</div>
-<div class="line"><a name="l00128"></a><span class="lineno">  128</span>&#160;    <a class="code" href="classRDPListener.html">RDPListener</a> *listener;</div>
-<div class="line"><a name="l00129"></a><span class="lineno">  129</span>&#160;    <a class="code" href="classDisplayBuffer.html">DisplayBuffer</a> *surface;</div>
-<div class="line"><a name="l00130"></a><span class="lineno">  130</span>&#160;    <span class="keywordtype">size_t</span> buf_width;</div>
-<div class="line"><a name="l00131"></a><span class="lineno">  131</span>&#160;    <span class="keywordtype">size_t</span> buf_height;</div>
-<div class="line"><a name="l00132"></a><span class="lineno">  132</span>&#160;</div>
-<div class="line"><a name="l00133"></a><span class="lineno">  133</span>&#160;    std::mutex surface_lock;</div>
-<div class="line"><a name="l00134"></a><span class="lineno">  134</span>&#160;</div>
-<div class="line"><a name="l00135"></a><span class="lineno">  135</span>&#160;    <span class="keywordtype">void</span> UpdateRegion(uint32_t x, uint32_t y, uint32_t w, uint32_t h, BOOL fullRefresh);</div>
-<div class="line"><a name="l00136"></a><span class="lineno">  136</span>&#160;    PIXEL_FORMAT GetPixelFormatForPixmanFormat(pixman_format_code_t f);</div>
-<div class="line"><a name="l00137"></a><span class="lineno">  137</span>&#160;    <span class="keywordtype">void</span> CreateSurface(PIXEL_FORMAT r);</div>
-<div class="line"><a name="l00138"></a><span class="lineno">  138</span>&#160;};</div>
-<div class="line"><a name="l00139"></a><span class="lineno">  139</span>&#160;</div>
-<div class="line"><a name="l00144"></a><span class="lineno"><a class="line" href="structpeer__context.html">  144</a></span>&#160;<span class="keyword">struct </span><a class="code" href="structpeer__context.html">peer_context</a> {</div>
-<div class="line"><a name="l00145"></a><span class="lineno">  145</span>&#160;    rdpContext _p;</div>
-<div class="line"><a name="l00146"></a><span class="lineno">  146</span>&#160;    <a class="code" href="classRDPPeer.html">RDPPeer</a> *peerObj;</div>
-<div class="line"><a name="l00147"></a><span class="lineno">  147</span>&#160;</div>
-<div class="line"><a name="l00148"></a><span class="lineno">  148</span>&#160;    RFX_CONTEXT *rfx_context;</div>
-<div class="line"><a name="l00149"></a><span class="lineno">  149</span>&#160;    NSC_CONTEXT *nsc_context;</div>
-<div class="line"><a name="l00150"></a><span class="lineno">  150</span>&#160;    wStream *s;</div>
-<div class="line"><a name="l00151"></a><span class="lineno">  151</span>&#160;    BYTE *icon_data;</div>
-<div class="line"><a name="l00152"></a><span class="lineno">  152</span>&#160;    BYTE *bg_data;</div>
-<div class="line"><a name="l00153"></a><span class="lineno">  153</span>&#160;    <span class="keywordtype">int</span> icon_width;</div>
-<div class="line"><a name="l00154"></a><span class="lineno">  154</span>&#160;    <span class="keywordtype">int</span> icon_height;</div>
-<div class="line"><a name="l00155"></a><span class="lineno">  155</span>&#160;    <span class="keywordtype">int</span> icon_x;</div>
-<div class="line"><a name="l00156"></a><span class="lineno">  156</span>&#160;    <span class="keywordtype">int</span> icon_y;</div>
-<div class="line"><a name="l00157"></a><span class="lineno">  157</span>&#160;    BOOL activated;</div>
-<div class="line"><a name="l00158"></a><span class="lineno">  158</span>&#160;    HANDLE event;</div>
-<div class="line"><a name="l00159"></a><span class="lineno">  159</span>&#160;    HANDLE stopEvent;</div>
-<div class="line"><a name="l00160"></a><span class="lineno">  160</span>&#160;    HANDLE vcm;</div>
-<div class="line"><a name="l00161"></a><span class="lineno">  161</span>&#160;    <span class="keywordtype">void</span> *debug_channel;</div>
-<div class="line"><a name="l00162"></a><span class="lineno">  162</span>&#160;    HANDLE debug_channel_thread;</div>
-<div class="line"><a name="l00163"></a><span class="lineno">  163</span>&#160;    audin_server_context *audin;</div>
-<div class="line"><a name="l00164"></a><span class="lineno">  164</span>&#160;    BOOL audin_open;</div>
-<div class="line"><a name="l00165"></a><span class="lineno">  165</span>&#160;    UINT32 frame_id;</div>
-<div class="line"><a name="l00166"></a><span class="lineno">  166</span>&#160;    RdpsndServerContext *rdpsound;</div>
-<div class="line"><a name="l00167"></a><span class="lineno">  167</span>&#160;};</div>
-<div class="line"><a name="l00168"></a><span class="lineno">  168</span>&#160;<span class="keyword">typedef</span> <span class="keyword">struct </span><a class="code" href="structpeer__context.html">peer_context</a> <a class="code" href="structpeer__context.html">PeerContext</a>;</div>
-<div class="line"><a name="l00169"></a><span class="lineno">  169</span>&#160;<span class="preprocessor">#endif //QEMU_RDP_RDPPEER_H</span></div>
-<div class="ttc" id="classRDPPeer_html_a79dcfd6f28a47b7d1b7d71750555c4e1"><div class="ttname"><a href="classRDPPeer.html#a79dcfd6f28a47b7d1b7d71750555c4e1">RDPPeer::RDPPeer</a></div><div class="ttdeci">RDPPeer(std::tuple&lt; freerdp_peer *, nn::socket *, RDPListener * &gt;)</div><div class="ttdoc">Creates a new RDPPeer class. </div><div class="ttdef"><b>Definition:</b> RDPPeer.cpp:240</div></div>
-<div class="ttc" id="classRDPPeer_html_ab520bc5271ed0e7b8d19a9ea9e46372b"><div class="ttname"><a href="classRDPPeer.html#ab520bc5271ed0e7b8d19a9ea9e46372b">RDPPeer::ProcessKeyboardMsg</a></div><div class="ttdeci">void ProcessKeyboardMsg(uint16_t flags, uint16_t keycode)</div><div class="ttdoc">Creates and sends a msgpack-encoded keyboard message to the VM. </div><div class="ttdef"><b>Definition:</b> RDPPeer.cpp:377</div></div>
-<div class="ttc" id="classRDPPeer_html"><div class="ttname"><a href="classRDPPeer.html">RDPPeer</a></div><div class="ttdoc">Manages the connection to a single RDP client. </div><div class="ttdef"><b>Definition:</b> RDPPeer.h:39</div></div>
-<div class="ttc" id="classRDPPeer_html_ab9ddef2f53e08eaaf8265e85112d7762"><div class="ttname"><a href="classRDPPeer.html#ab9ddef2f53e08eaaf8265e85112d7762">RDPPeer::ProcessMouseMsg</a></div><div class="ttdeci">void ProcessMouseMsg(uint16_t flags, uint16_t x, uint16_t y)</div><div class="ttdoc">Creates and sends a msgpack-encoded mouse message to the VM. </div><div class="ttdef"><b>Definition:</b> RDPPeer.cpp:361</div></div>
-<div class="ttc" id="classRDPPeer_html_a03c0c56cff112c8df9f2d479abb12bed"><div class="ttname"><a href="classRDPPeer.html#a03c0c56cff112c8df9f2d479abb12bed">RDPPeer::GetSurfaceHeight</a></div><div class="ttdeci">size_t GetSurfaceHeight()</div><div class="ttdoc">Gets the height of the surface. </div><div class="ttdef"><b>Definition:</b> RDPPeer.cpp:230</div></div>
-<div class="ttc" id="classDisplayBuffer_html"><div class="ttname"><a href="classDisplayBuffer.html">DisplayBuffer</a></div><div class="ttdoc">Base class to hold and manage framebuffers for RDPPeers. </div><div class="ttdef"><b>Definition:</b> DisplayBuffer.h:24</div></div>
-<div class="ttc" id="classRDPPeer_html_a25541bcbf5fa6c33e6949d612d724ae2"><div class="ttname"><a href="classRDPPeer.html#a25541bcbf5fa6c33e6949d612d724ae2">RDPPeer::RunThread</a></div><div class="ttdeci">void RunThread(freerdp_peer *client)</div><div class="ttdoc">Main listen loop of the RDPPeer. </div><div class="ttdef"><b>Definition:</b> RDPPeer.cpp:307</div></div>
-<div class="ttc" id="classRDPPeer_html_a6166bab4575ad8fadbb9b11ecd35ae9b"><div class="ttname"><a href="classRDPPeer.html#a6166bab4575ad8fadbb9b11ecd35ae9b">RDPPeer::~RDPPeer</a></div><div class="ttdeci">~RDPPeer()</div><div class="ttdoc">Takes care of freeing the underlying peer_context and freerdp_peer structs. </div><div class="ttdef"><b>Definition:</b> RDPPeer.cpp:301</div></div>
-<div class="ttc" id="classRDPPeer_html_a489a0833bc256165a7d4637f89bcb028"><div class="ttname"><a href="classRDPPeer.html#a489a0833bc256165a7d4637f89bcb028">RDPPeer::FullDisplayUpdate</a></div><div class="ttdeci">void FullDisplayUpdate(pixman_format_code_t f)</div><div class="ttdoc">Recreates the surface object associated with this framebuffer and sends a full display update to the ...</div><div class="ttdef"><b>Definition:</b> RDPPeer.cpp:446</div></div>
-<div class="ttc" id="classRDPPeer_html_ab6133e212a70aac549c933e6a7970e4c"><div class="ttname"><a href="classRDPPeer.html#ab6133e212a70aac549c933e6a7970e4c">RDPPeer::GetSurfaceWidth</a></div><div class="ttdeci">size_t GetSurfaceWidth()</div><div class="ttdoc">Gets the width of the surface. </div><div class="ttdef"><b>Definition:</b> RDPPeer.cpp:225</div></div>
-<div class="ttc" id="classRDPPeer_html_a798ad03f1fefc72326a0e199c14cc5ba"><div class="ttname"><a href="classRDPPeer.html#a798ad03f1fefc72326a0e199c14cc5ba">RDPPeer::PeerThread</a></div><div class="ttdeci">static void * PeerThread(void *arg)</div><div class="ttdoc">Factory method that creates and starts a RDPPeer. </div><div class="ttdef"><b>Definition:</b> RDPPeer.cpp:341</div></div>
-<div class="ttc" id="classRDPListener_html"><div class="ttname"><a href="classRDPListener.html">RDPListener</a></div><div class="ttdoc">C++ class wrapping the freerdp_listener struct associated with the RDP server. </div><div class="ttdef"><b>Definition:</b> RDPListener.h:26</div></div>
-<div class="ttc" id="classRDPPeer_html_aae701fe6639205d54411dd06ca027db1"><div class="ttname"><a href="classRDPPeer.html#aae701fe6639205d54411dd06ca027db1">RDPPeer::GetListener</a></div><div class="ttdeci">RDPListener * GetListener()</div><div class="ttdoc">Returns a reference to the RDPListener associated with this peer. </div><div class="ttdef"><b>Definition:</b> RDPPeer.cpp:235</div></div>
-<div class="ttc" id="classRDPPeer_html_a4193357a049e96c32662b99537db75d0"><div class="ttname"><a href="classRDPPeer.html#a4193357a049e96c32662b99537db75d0">RDPPeer::PartialDisplayUpdate</a></div><div class="ttdeci">void PartialDisplayUpdate(uint32_t x_coord, uint32_t y_coord, uint32_t width, uint32_t height)</div><div class="ttdoc">Encodes and sends a partial display buffer update to the RDP client. </div><div class="ttdef"><b>Definition:</b> RDPPeer.cpp:392</div></div>
-<div class="ttc" id="structpeer__context_html"><div class="ttname"><a href="structpeer__context.html">peer_context</a></div><div class="ttdoc">Struct holding all context related to the freerdp_peer session. Most of this is currently unused...</div><div class="ttdef"><b>Definition:</b> RDPPeer.h:144</div></div>
+<div class="line"><a name="l00017"></a><span class="lineno">   17</span>&#160;<span class="preprocessor">#ifndef QEMU_RDP_RDPPEER_H</span></div>
+<div class="line"><a name="l00018"></a><span class="lineno">   18</span>&#160;<span class="preprocessor">#define QEMU_RDP_RDPPEER_H</span></div>
+<div class="line"><a name="l00019"></a><span class="lineno">   19</span>&#160;</div>
+<div class="line"><a name="l00020"></a><span class="lineno">   20</span>&#160;<span class="preprocessor">#include &lt;freerdp/freerdp.h&gt;</span></div>
+<div class="line"><a name="l00021"></a><span class="lineno">   21</span>&#160;<span class="preprocessor">#include &lt;freerdp/peer.h&gt;</span></div>
+<div class="line"><a name="l00022"></a><span class="lineno">   22</span>&#160;<span class="preprocessor">#include &lt;freerdp/server/audin.h&gt;</span></div>
+<div class="line"><a name="l00023"></a><span class="lineno">   23</span>&#160;<span class="preprocessor">#include &lt;freerdp/server/rdpsnd.h&gt;</span></div>
+<div class="line"><a name="l00024"></a><span class="lineno">   24</span>&#160;</div>
+<div class="line"><a name="l00025"></a><span class="lineno">   25</span>&#160;<span class="preprocessor">#include &quot;RDPListener.h&quot;</span></div>
+<div class="line"><a name="l00026"></a><span class="lineno">   26</span>&#160;<span class="preprocessor">#include &quot;DisplayBuffer.h&quot;</span></div>
+<div class="line"><a name="l00027"></a><span class="lineno">   27</span>&#160;<span class="preprocessor">#include &quot;nanomsg.h&quot;</span></div>
+<div class="line"><a name="l00028"></a><span class="lineno">   28</span>&#160;</div>
+<div class="line"><a name="l00035"></a><span class="lineno">   35</span>&#160;<span class="keyword">enum</span> pixel_formats {</div>
+<div class="line"><a name="l00036"></a><span class="lineno">   36</span>&#160;    PIXEL_FORMAT_r8g8b8a8,</div>
+<div class="line"><a name="l00037"></a><span class="lineno">   37</span>&#160;    PIXEL_FORMAT_a8r8g8b8,</div>
+<div class="line"><a name="l00038"></a><span class="lineno">   38</span>&#160;    PIXEL_FORMAT_r8g8b8,</div>
+<div class="line"><a name="l00039"></a><span class="lineno">   39</span>&#160;    PIXEL_FORMAT_b8g8r8,</div>
+<div class="line"><a name="l00040"></a><span class="lineno">   40</span>&#160;};</div>
+<div class="line"><a name="l00041"></a><span class="lineno">   41</span>&#160;<span class="keyword">typedef</span> <span class="keyword">enum</span> pixel_formats PIXEL_FORMAT;</div>
+<div class="line"><a name="l00042"></a><span class="lineno">   42</span>&#160;</div>
+<div class="line"><a name="l00043"></a><span class="lineno">   43</span>&#160;<span class="keyword">class </span><a class="code" href="classRDPListener.html">RDPListener</a>; <span class="comment">// I&#39;m very bad at organizing C++ code</span></div>
+<div class="line"><a name="l00044"></a><span class="lineno">   44</span>&#160;</div>
+<div class="line"><a name="l00051"></a><span class="lineno"><a class="line" href="classRDPPeer.html">   51</a></span>&#160;<span class="keyword">class </span><a class="code" href="classRDPPeer.html">RDPPeer</a></div>
+<div class="line"><a name="l00052"></a><span class="lineno">   52</span>&#160;{</div>
+<div class="line"><a name="l00053"></a><span class="lineno">   53</span>&#160;<span class="keyword">public</span>:</div>
+<div class="line"><a name="l00058"></a><span class="lineno">   58</span>&#160;    <a class="code" href="classRDPPeer.html#a79dcfd6f28a47b7d1b7d71750555c4e1">RDPPeer</a>(std::tuple&lt;freerdp_peer*, nn::socket*, RDPListener *&gt;);</div>
+<div class="line"><a name="l00059"></a><span class="lineno">   59</span>&#160;</div>
+<div class="line"><a name="l00063"></a><span class="lineno">   63</span>&#160;    <a class="code" href="classRDPPeer.html#a6166bab4575ad8fadbb9b11ecd35ae9b">~RDPPeer</a>();</div>
+<div class="line"><a name="l00064"></a><span class="lineno">   64</span>&#160;</div>
+<div class="line"><a name="l00073"></a><span class="lineno">   73</span>&#160;    <span class="keyword">static</span> <span class="keywordtype">void</span> *<a class="code" href="classRDPPeer.html#a798ad03f1fefc72326a0e199c14cc5ba">PeerThread</a>(<span class="keywordtype">void</span> *arg);</div>
+<div class="line"><a name="l00074"></a><span class="lineno">   74</span>&#160;</div>
+<div class="line"><a name="l00078"></a><span class="lineno">   78</span>&#160;    <span class="keywordtype">void</span> <a class="code" href="classRDPPeer.html#a25541bcbf5fa6c33e6949d612d724ae2">RunThread</a>(freerdp_peer *client);</div>
+<div class="line"><a name="l00079"></a><span class="lineno">   79</span>&#160;</div>
+<div class="line"><a name="l00087"></a><span class="lineno">   87</span>&#160;    <span class="keywordtype">void</span> <a class="code" href="classRDPPeer.html#ab9ddef2f53e08eaaf8265e85112d7762">ProcessMouseMsg</a>(uint16_t flags, uint16_t x, uint16_t y);</div>
+<div class="line"><a name="l00088"></a><span class="lineno">   88</span>&#160;</div>
+<div class="line"><a name="l00095"></a><span class="lineno">   95</span>&#160;    <span class="keywordtype">void</span> <a class="code" href="classRDPPeer.html#ab520bc5271ed0e7b8d19a9ea9e46372b">ProcessKeyboardMsg</a>(uint16_t flags, uint16_t keycode);</div>
+<div class="line"><a name="l00096"></a><span class="lineno">   96</span>&#160;</div>
+<div class="line"><a name="l00105"></a><span class="lineno">  105</span>&#160;    <span class="keywordtype">void</span> <a class="code" href="classRDPPeer.html#a4193357a049e96c32662b99537db75d0">PartialDisplayUpdate</a>(uint32_t x_coord, uint32_t y_coord, uint32_t width, uint32_t height);</div>
+<div class="line"><a name="l00106"></a><span class="lineno">  106</span>&#160;</div>
+<div class="line"><a name="l00113"></a><span class="lineno">  113</span>&#160;    <span class="keywordtype">void</span> <a class="code" href="classRDPPeer.html#a489a0833bc256165a7d4637f89bcb028">FullDisplayUpdate</a>(pixman_format_code_t f);</div>
+<div class="line"><a name="l00114"></a><span class="lineno">  114</span>&#160;</div>
+<div class="line"><a name="l00120"></a><span class="lineno">  120</span>&#160;    <span class="keywordtype">size_t</span> <a class="code" href="classRDPPeer.html#ab6133e212a70aac549c933e6a7970e4c">GetSurfaceWidth</a>();</div>
+<div class="line"><a name="l00121"></a><span class="lineno">  121</span>&#160;</div>
+<div class="line"><a name="l00127"></a><span class="lineno">  127</span>&#160;    <span class="keywordtype">size_t</span> <a class="code" href="classRDPPeer.html#a03c0c56cff112c8df9f2d479abb12bed">GetSurfaceHeight</a>();</div>
+<div class="line"><a name="l00128"></a><span class="lineno">  128</span>&#160;</div>
+<div class="line"><a name="l00134"></a><span class="lineno">  134</span>&#160;    <a class="code" href="classRDPListener.html">RDPListener</a> *<a class="code" href="classRDPPeer.html#aae701fe6639205d54411dd06ca027db1">GetListener</a>();</div>
+<div class="line"><a name="l00135"></a><span class="lineno">  135</span>&#160;</div>
+<div class="line"><a name="l00136"></a><span class="lineno">  136</span>&#160;<span class="keyword">private</span>:</div>
+<div class="line"><a name="l00137"></a><span class="lineno">  137</span>&#160;    freerdp_peer *client;</div>
+<div class="line"><a name="l00138"></a><span class="lineno">  138</span>&#160;    std::tuple&lt;freerdp_peer*, nn::socket*, RDPListener *&gt; tuple;</div>
+<div class="line"><a name="l00139"></a><span class="lineno">  139</span>&#160;    <span class="keywordtype">void</span> *shm_buffer_region;</div>
+<div class="line"><a name="l00140"></a><span class="lineno">  140</span>&#160;    <a class="code" href="classRDPListener.html">RDPListener</a> *listener;</div>
+<div class="line"><a name="l00141"></a><span class="lineno">  141</span>&#160;    <a class="code" href="classDisplayBuffer.html">DisplayBuffer</a> *surface;</div>
+<div class="line"><a name="l00142"></a><span class="lineno">  142</span>&#160;    <span class="keywordtype">size_t</span> buf_width;</div>
+<div class="line"><a name="l00143"></a><span class="lineno">  143</span>&#160;    <span class="keywordtype">size_t</span> buf_height;</div>
+<div class="line"><a name="l00144"></a><span class="lineno">  144</span>&#160;</div>
+<div class="line"><a name="l00145"></a><span class="lineno">  145</span>&#160;    std::mutex surface_lock;</div>
+<div class="line"><a name="l00146"></a><span class="lineno">  146</span>&#160;</div>
+<div class="line"><a name="l00147"></a><span class="lineno">  147</span>&#160;    <span class="keywordtype">void</span> UpdateRegion(uint32_t x, uint32_t y, uint32_t w, uint32_t h, BOOL fullRefresh);</div>
+<div class="line"><a name="l00148"></a><span class="lineno">  148</span>&#160;    PIXEL_FORMAT GetPixelFormatForPixmanFormat(pixman_format_code_t f);</div>
+<div class="line"><a name="l00149"></a><span class="lineno">  149</span>&#160;    <span class="keywordtype">void</span> CreateSurface(PIXEL_FORMAT r);</div>
+<div class="line"><a name="l00150"></a><span class="lineno">  150</span>&#160;};</div>
+<div class="line"><a name="l00151"></a><span class="lineno">  151</span>&#160;</div>
+<div class="line"><a name="l00156"></a><span class="lineno"><a class="line" href="structpeer__context.html">  156</a></span>&#160;<span class="keyword">struct </span><a class="code" href="structpeer__context.html">peer_context</a> {</div>
+<div class="line"><a name="l00157"></a><span class="lineno">  157</span>&#160;    rdpContext _p;</div>
+<div class="line"><a name="l00158"></a><span class="lineno">  158</span>&#160;    <a class="code" href="classRDPPeer.html">RDPPeer</a> *peerObj;</div>
+<div class="line"><a name="l00159"></a><span class="lineno">  159</span>&#160;</div>
+<div class="line"><a name="l00160"></a><span class="lineno">  160</span>&#160;    RFX_CONTEXT *rfx_context;</div>
+<div class="line"><a name="l00161"></a><span class="lineno">  161</span>&#160;    NSC_CONTEXT *nsc_context;</div>
+<div class="line"><a name="l00162"></a><span class="lineno">  162</span>&#160;    wStream *s;</div>
+<div class="line"><a name="l00163"></a><span class="lineno">  163</span>&#160;    BYTE *icon_data;</div>
+<div class="line"><a name="l00164"></a><span class="lineno">  164</span>&#160;    BYTE *bg_data;</div>
+<div class="line"><a name="l00165"></a><span class="lineno">  165</span>&#160;    <span class="keywordtype">int</span> icon_width;</div>
+<div class="line"><a name="l00166"></a><span class="lineno">  166</span>&#160;    <span class="keywordtype">int</span> icon_height;</div>
+<div class="line"><a name="l00167"></a><span class="lineno">  167</span>&#160;    <span class="keywordtype">int</span> icon_x;</div>
+<div class="line"><a name="l00168"></a><span class="lineno">  168</span>&#160;    <span class="keywordtype">int</span> icon_y;</div>
+<div class="line"><a name="l00169"></a><span class="lineno">  169</span>&#160;    BOOL activated;</div>
+<div class="line"><a name="l00170"></a><span class="lineno">  170</span>&#160;    HANDLE event;</div>
+<div class="line"><a name="l00171"></a><span class="lineno">  171</span>&#160;    HANDLE stopEvent;</div>
+<div class="line"><a name="l00172"></a><span class="lineno">  172</span>&#160;    HANDLE vcm;</div>
+<div class="line"><a name="l00173"></a><span class="lineno">  173</span>&#160;    <span class="keywordtype">void</span> *debug_channel;</div>
+<div class="line"><a name="l00174"></a><span class="lineno">  174</span>&#160;    HANDLE debug_channel_thread;</div>
+<div class="line"><a name="l00175"></a><span class="lineno">  175</span>&#160;    audin_server_context *audin;</div>
+<div class="line"><a name="l00176"></a><span class="lineno">  176</span>&#160;    BOOL audin_open;</div>
+<div class="line"><a name="l00177"></a><span class="lineno">  177</span>&#160;    UINT32 frame_id;</div>
+<div class="line"><a name="l00178"></a><span class="lineno">  178</span>&#160;    RdpsndServerContext *rdpsound;</div>
+<div class="line"><a name="l00179"></a><span class="lineno">  179</span>&#160;};</div>
+<div class="line"><a name="l00180"></a><span class="lineno">  180</span>&#160;<span class="keyword">typedef</span> <span class="keyword">struct </span><a class="code" href="structpeer__context.html">peer_context</a> <a class="code" href="structpeer__context.html">PeerContext</a>;</div>
+<div class="line"><a name="l00181"></a><span class="lineno">  181</span>&#160;<span class="preprocessor">#endif //QEMU_RDP_RDPPEER_H</span></div>
+<div class="ttc" id="classRDPPeer_html_a79dcfd6f28a47b7d1b7d71750555c4e1"><div class="ttname"><a href="classRDPPeer.html#a79dcfd6f28a47b7d1b7d71750555c4e1">RDPPeer::RDPPeer</a></div><div class="ttdeci">RDPPeer(std::tuple&lt; freerdp_peer *, nn::socket *, RDPListener * &gt;)</div><div class="ttdoc">Creates a new RDPPeer class. </div><div class="ttdef"><b>Definition:</b> RDPPeer.cpp:251</div></div>
+<div class="ttc" id="classRDPPeer_html_ab520bc5271ed0e7b8d19a9ea9e46372b"><div class="ttname"><a href="classRDPPeer.html#ab520bc5271ed0e7b8d19a9ea9e46372b">RDPPeer::ProcessKeyboardMsg</a></div><div class="ttdeci">void ProcessKeyboardMsg(uint16_t flags, uint16_t keycode)</div><div class="ttdoc">Creates and sends a msgpack-encoded keyboard message to the VM. </div><div class="ttdef"><b>Definition:</b> RDPPeer.cpp:388</div></div>
+<div class="ttc" id="classRDPPeer_html"><div class="ttname"><a href="classRDPPeer.html">RDPPeer</a></div><div class="ttdoc">Manages the connection to a single RDP client. </div><div class="ttdef"><b>Definition:</b> RDPPeer.h:51</div></div>
+<div class="ttc" id="classRDPPeer_html_ab9ddef2f53e08eaaf8265e85112d7762"><div class="ttname"><a href="classRDPPeer.html#ab9ddef2f53e08eaaf8265e85112d7762">RDPPeer::ProcessMouseMsg</a></div><div class="ttdeci">void ProcessMouseMsg(uint16_t flags, uint16_t x, uint16_t y)</div><div class="ttdoc">Creates and sends a msgpack-encoded mouse message to the VM. </div><div class="ttdef"><b>Definition:</b> RDPPeer.cpp:372</div></div>
+<div class="ttc" id="classRDPPeer_html_a03c0c56cff112c8df9f2d479abb12bed"><div class="ttname"><a href="classRDPPeer.html#a03c0c56cff112c8df9f2d479abb12bed">RDPPeer::GetSurfaceHeight</a></div><div class="ttdeci">size_t GetSurfaceHeight()</div><div class="ttdoc">Gets the height of the surface. </div><div class="ttdef"><b>Definition:</b> RDPPeer.cpp:241</div></div>
+<div class="ttc" id="classDisplayBuffer_html"><div class="ttname"><a href="classDisplayBuffer.html">DisplayBuffer</a></div><div class="ttdoc">Base class to hold and manage framebuffers for RDPPeers. </div><div class="ttdef"><b>Definition:</b> DisplayBuffer.h:36</div></div>
+<div class="ttc" id="classRDPPeer_html_a25541bcbf5fa6c33e6949d612d724ae2"><div class="ttname"><a href="classRDPPeer.html#a25541bcbf5fa6c33e6949d612d724ae2">RDPPeer::RunThread</a></div><div class="ttdeci">void RunThread(freerdp_peer *client)</div><div class="ttdoc">Main listen loop of the RDPPeer. </div><div class="ttdef"><b>Definition:</b> RDPPeer.cpp:318</div></div>
+<div class="ttc" id="classRDPPeer_html_a6166bab4575ad8fadbb9b11ecd35ae9b"><div class="ttname"><a href="classRDPPeer.html#a6166bab4575ad8fadbb9b11ecd35ae9b">RDPPeer::~RDPPeer</a></div><div class="ttdeci">~RDPPeer()</div><div class="ttdoc">Takes care of freeing the underlying peer_context and freerdp_peer structs. </div><div class="ttdef"><b>Definition:</b> RDPPeer.cpp:312</div></div>
+<div class="ttc" id="classRDPPeer_html_a489a0833bc256165a7d4637f89bcb028"><div class="ttname"><a href="classRDPPeer.html#a489a0833bc256165a7d4637f89bcb028">RDPPeer::FullDisplayUpdate</a></div><div class="ttdeci">void FullDisplayUpdate(pixman_format_code_t f)</div><div class="ttdoc">Recreates the surface object associated with this framebuffer and sends a full display update to the ...</div><div class="ttdef"><b>Definition:</b> RDPPeer.cpp:457</div></div>
+<div class="ttc" id="classRDPPeer_html_ab6133e212a70aac549c933e6a7970e4c"><div class="ttname"><a href="classRDPPeer.html#ab6133e212a70aac549c933e6a7970e4c">RDPPeer::GetSurfaceWidth</a></div><div class="ttdeci">size_t GetSurfaceWidth()</div><div class="ttdoc">Gets the width of the surface. </div><div class="ttdef"><b>Definition:</b> RDPPeer.cpp:236</div></div>
+<div class="ttc" id="classRDPPeer_html_a798ad03f1fefc72326a0e199c14cc5ba"><div class="ttname"><a href="classRDPPeer.html#a798ad03f1fefc72326a0e199c14cc5ba">RDPPeer::PeerThread</a></div><div class="ttdeci">static void * PeerThread(void *arg)</div><div class="ttdoc">Factory method that creates and starts a RDPPeer. </div><div class="ttdef"><b>Definition:</b> RDPPeer.cpp:352</div></div>
+<div class="ttc" id="classRDPListener_html"><div class="ttname"><a href="classRDPListener.html">RDPListener</a></div><div class="ttdoc">C++ class wrapping the freerdp_listener struct associated with the RDP server. </div><div class="ttdef"><b>Definition:</b> RDPListener.h:38</div></div>
+<div class="ttc" id="classRDPPeer_html_aae701fe6639205d54411dd06ca027db1"><div class="ttname"><a href="classRDPPeer.html#aae701fe6639205d54411dd06ca027db1">RDPPeer::GetListener</a></div><div class="ttdeci">RDPListener * GetListener()</div><div class="ttdoc">Returns a reference to the RDPListener associated with this peer. </div><div class="ttdef"><b>Definition:</b> RDPPeer.cpp:246</div></div>
+<div class="ttc" id="classRDPPeer_html_a4193357a049e96c32662b99537db75d0"><div class="ttname"><a href="classRDPPeer.html#a4193357a049e96c32662b99537db75d0">RDPPeer::PartialDisplayUpdate</a></div><div class="ttdeci">void PartialDisplayUpdate(uint32_t x_coord, uint32_t y_coord, uint32_t width, uint32_t height)</div><div class="ttdoc">Encodes and sends a partial display buffer update to the RDP client. </div><div class="ttdef"><b>Definition:</b> RDPPeer.cpp:403</div></div>
+<div class="ttc" id="structpeer__context_html"><div class="ttname"><a href="structpeer__context.html">peer_context</a></div><div class="ttdoc">Struct holding all context related to the freerdp_peer session. Most of this is currently unused...</div><div class="ttdef"><b>Definition:</b> RDPPeer.h:156</div></div>
 </div><!-- fragment --></div><!-- contents -->
 </div><!-- doc-content -->
 <!-- start footer part -->
