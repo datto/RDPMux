@@ -45,6 +45,7 @@ namespace {
             "    <method name='Register'>"
             "      <arg type='i' name='id' direction='in'/>"
             "      <arg type='i' name='version' direction='in' />"
+            "      <arg type='s' name='uuid' direction='in' />"
             "      <arg type='s' name='socket_path' direction='out'/>"
             "    </method>"
             "    <property type='ai' name='SupportedProtocolVersions' access='read' />"
@@ -80,13 +81,16 @@ static void on_method_call(const Glib::RefPtr<Gio::DBus::Connection>& conn,
     if (method_name == "Register") {
         Glib::Variant<int> id_variant;
         Glib::Variant<int> ver_variant;
+        Glib::Variant<Glib::ustring> uuid_variant;
         parameters.get_child(id_variant, 0);
         parameters.get_child(ver_variant, 1);
+        parameters.get_child(uuid_variant, 2);
         int id = id_variant.get();
         int ver = ver_variant.get();
+        Glib::ustring uuid = uuid_variant.get();
 
         // TODO: flesh this code out, needs to be more comprehensive for when we bump protocol
-        if (ver != 1) {
+        if (ver != 2) {
             invocation->return_value(
                     Glib::VariantContainerBase::create_tuple(
                             Glib::Variant<std::string>::create("")
@@ -116,7 +120,7 @@ static void on_method_call(const Glib::RefPtr<Gio::DBus::Connection>& conn,
 
         const Glib::ustring socket_path = Glib::ustring::compose("ipc://%1/%2.socket", tmp_dir_path, id);
 
-        RDPServerWorker *worker = new RDPServerWorker(socket_path, id, port++);
+        RDPServerWorker *worker = new RDPServerWorker(socket_path, id, port++, uuid);
         worker->setDBusConnection(conn);
         worker_list.push_back(worker);
         worker->start();
@@ -140,7 +144,7 @@ static void on_property_call(Glib::VariantBase& property,
     if (property_name == "SupportedProtocolVersions") {
         // pretty inextensible way to do this, but since we have no other versions, it'll suffice for now.
         auto versions = std::vector<int>();
-        versions.push_back(1);
+        versions.push_back(2);
         auto ver_var = Glib::Variant<std::vector<int>>::create(versions);
         property = ver_var;
     }

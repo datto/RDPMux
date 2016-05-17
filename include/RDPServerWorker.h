@@ -44,14 +44,16 @@ public:
      * @brief Creates a new RDPServerworker object.
      *
      * @param path File path to the nanomsg socket in the filesystem
-     * @param vm_id ID of the VM.
+     * @param vm_id Internal VM ID.
+     * @param uuid The external UUID of the VM.
      */
-    RDPServerWorker(const Glib::ustring &path, int vm_id, uint16_t port) : out_thread(0),
-                                                                           stop(false)
+    RDPServerWorker(const Glib::ustring &path, int vm_id, uint16_t port, Glib::ustring uuid) : out_thread(0),
+                                                                                               stop(false)
     {
         socket_path = path;
         this->vm_id = vm_id;
         this->port = port;
+        this->uuid = uuid;
     }
 
     /**
@@ -131,6 +133,10 @@ protected:
      * @brief Path to the socket in the filesystem.
      */
     Glib::ustring socket_path;
+    /**
+     * @brief UUID of the VM associated with this ServerWorker.
+     */
+    Glib::ustring uuid;
     /**
      * @brief Pointer to the nanomsg socket.
      */

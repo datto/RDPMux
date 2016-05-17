@@ -19,6 +19,7 @@
 #include <memory>
 #include <util/MessageQueue.h>
 #include <iostream>
+#include <algorithm>
 #include <msgpack.hpp>
 #include <thread>
 #include <util/logging.h>
@@ -80,7 +81,12 @@ void RDPServerWorker::run()
     // now that listener is up we can register the object on the bus
     const Gio::DBus::InterfaceVTable vtable(sigc::mem_fun(*this, &RDPServerWorker::on_method_call), sigc::mem_fun(*this, &RDPServerWorker::on_property_call));
     Glib::ustring worker_dbus_base_name = "/org/RDPMux/ServerWorker/";
-    worker_dbus_base_name += std::to_string(vm_id);
+
+    // sanitize uuid before creating dbus object
+    std::string thing = uuid;
+    thing.erase(std::remove(thing.begin(), thing.end(), '-'), thing.end());
+    worker_dbus_base_name += thing;
+
     Glib::RefPtr<Gio::DBus::NodeInfo> introspection_data;
 
     try {
