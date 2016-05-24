@@ -55,6 +55,8 @@ void RDPServerWorker::run()
         VLOG(3) << "Socket path is " << this->socket_path.data();
         sock->bind(this->socket_path.data());
         sock->setsockopt(NN_SOL_SOCKET, NN_RCVTIMEO, &to, sizeof(to));
+        // chmod socket to 777 // TODO: replace with actual solution
+        chmod(this->socket_path.data(), S_IRWXU | S_IRWXG | S_IRWXO);
     } catch (nn::exception &ex) {
         LOG(WARNING) << "Socket binding went wrong: " << ex.what();
         return;
@@ -119,7 +121,9 @@ void RDPServerWorker::run()
 
         // finally, we block waiting on new qemu events to come to us, and put them on the queue when they do.
         void *buf = nullptr;
+        VLOG(3) << "WORKER " << this << ": Blocking on socket receive now";
         int nbytes = sock->recv(&buf, NN_MSG, 0); // blocking
+        VLOG(3) << "WORKER " << this << ": Received event from socket";
 
         if (nbytes > 0) {
             QueueItem *item = new QueueItem(buf, nbytes); // QueueItem is responsible for the buf from this point on.

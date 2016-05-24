@@ -107,8 +107,8 @@ static void on_method_call(const Glib::RefPtr<Gio::DBus::Connection>& conn,
         // check for existence of tmp directory
         if (opendir(tmp_dir_path.c_str()) == NULL) {
             if (errno == ENOTDIR || errno == ENOENT) {
-                // create directory
-                if (mkdir(tmp_dir_path.c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH) < 0) {
+                // create directory with 777 permissions
+                if (mkdir(tmp_dir_path.c_str(), S_IRWXU | S_IRWXG | S_IRWXO) < 0) {
                     LOG(ERROR) << "Error creating tmp dir " << tmp_dir_path << " : " << strerror(errno);
                     return;
                 }
