@@ -20,13 +20,13 @@
 #include <util/MessageQueue.h>
 #include <iostream>
 #include <algorithm>
+#include <sys/stat.h>
 #include <msgpack.hpp>
 #include <thread>
 #include <util/logging.h>
 #include <giomm/dbusconnection.h>
 #include "nanomsg.h"
 #include "RDPServerWorker.h"
-#include "rdp/RDPListener.h"
 #include "common.h"
 
 Glib::ustring RDPServerWorker::introspection_xml =
@@ -45,18 +45,19 @@ void RDPServerWorker::setDBusConnection(Glib::RefPtr<Gio::DBus::Connection> conn
 void RDPServerWorker::run()
 {
     int to = 1000000;
-
-    // create nanomsg socket using the path passed in.
-    // ACHTUNG: remember that the path _must exist_ on the filesystem, otherwise this silently fails!
-    // TODO: Make it throw an exception when the file path doesn't exist.
     nn::socket *sock = new nn::socket(AF_SP, NN_PAIR);
 
     try {
         VLOG(3) << "Socket path is " << this->socket_path.data();
         sock->bind(this->socket_path.data());
         sock->setsockopt(NN_SOL_SOCKET, NN_RCVTIMEO, &to, sizeof(to));
+
         // chmod socket to 777 // TODO: replace with actual solution
-        chmod(this->socket_path.data(), S_IRWXU | S_IRWXG | S_IRWXO);
+        auto path = this->socket_path.substr(6, Glib::ustring::npos);
+        if (chmod(path.data(), S_IRWXU | S_IRWXG | S_IRWXO) < 0) {
+            LOG(WARNING) << "Setting permissions on the socket failed: " << strerror(errno);
+        }
+
     } catch (nn::exception &ex) {
         LOG(WARNING) << "Socket binding went wrong: " << ex.what();
         return;
