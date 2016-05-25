@@ -146,6 +146,7 @@ static BOOL peer_activate(freerdp_peer *client)
     VLOG(3) << std::dec << "PEER: client->settings->Desktop{Width,Height}: " << DesktopWidth << " " << DesktopHeight;
     context->peerObj->FullDisplayUpdate(context->peerObj->GetListener()->GetFormat());
 
+    context->peerObj->PartialDisplayUpdate(0, 0, context->peerObj->GetSurfaceWidth(), context->peerObj->GetSurfaceHeight());
     return TRUE;
 }
 
@@ -266,6 +267,7 @@ RDPPeer::RDPPeer(std::tuple<freerdp_peer*, nn::socket*, RDPListener *> tuple)
 
     if (!freerdp_peer_context_new(client)) {
         freerdp_peer_free(client);
+        LOG(WARNING) << "Could not allocate peer context!";
         throw std::bad_alloc();
     }
 
@@ -460,6 +462,9 @@ void RDPPeer::FullDisplayUpdate(pixman_format_code_t f)
 
     try {
         r = GetPixelFormatForPixmanFormat(f);
+        if (r < 1) {
+            LOG(WARNING) << "What is the point of exceptions if they never get caught?";
+        }
     } catch (std::invalid_argument &e) {
         // TODO: notify the outside somehow that we have stuff to implement
         VLOG(3) << "PEER: Unknown pixel format received.";
@@ -508,9 +513,7 @@ void RDPPeer::UpdateRegion(uint32_t x, uint32_t y, uint32_t w, uint32_t h, BOOL 
         return;
     }
 
-    VLOG(2) << std::dec << "PEER: calloc() gave us " << malloc_usable_size(dirty) << " bytes";
-
-    surface->FillDirtyRegion(x, y, w, h, dirty);
+    //VLOG(2) << std::dec << "PEER: calloc() gave us " << malloc_usable_size(dirty) << " bytes";
 
     // begin the RDP frame
     begin_new_frame(update, context);
@@ -524,7 +527,13 @@ void RDPPeer::UpdateRegion(uint32_t x, uint32_t y, uint32_t w, uint32_t h, BOOL 
         rect.width = w;
         rect.height = h;
 
+        {
+            std::lock_guard<std::mutex> lock(surface_lock);
+            surface->FillDirtyRegion(x, y, w, h, dirty);
+        }
+
         int scanline = surface->GetScanline(w);
+
 
         rfx_compose_message(context->rfx_context, s, &rect, 1, dirty, rect.width, rect.height, scanline);
 

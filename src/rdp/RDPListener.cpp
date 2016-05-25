@@ -225,7 +225,7 @@ void RDPListener::registerPeer(RDPPeer *peer)
     // registered via this method to pass down display update events for encoding and transmission to all RDP clients.
     std::lock_guard<std::mutex> lock(peerlist_mutex);
     peerlist.push_back(peer);
-    peer->FullDisplayUpdate(format);
+    peer->PartialDisplayUpdate(0, 0, this->width, this->height);
     VLOG(2) << "Registered peer " << peer;
 }
 
