@@ -37,11 +37,13 @@ void DisplayBuffer_r8g8b8a8::FillDirtyRegion(uint32_t x, uint32_t y, uint32_t w,
     struct rdp_pixel *rdp;
     uint32_t pixel;
 
-    int skip = (w - buf_width) * 4;
+    // TODO: explain how this number works so that future people don't repeat effort.
+    int skip = (buf_width - w) * 4;
 
     // copies the buffer out of the shmem TODO: make better docstrings
     shm_data = (uint32_t *) this->shm_buffer_region;
     dest_ptr = dirty;
+
     for (row = 0; row < h; row++) {
         if ((y + row) >= buf_height) {
             break;
@@ -49,7 +51,7 @@ void DisplayBuffer_r8g8b8a8::FillDirtyRegion(uint32_t x, uint32_t y, uint32_t w,
 
         src_ptr = shm_data + (buf_width * (y + row)) + x;
 
-        for (col = 0; col < buf_width; col++) {
+        for (col = 0; col < w; col++) {
             rdp = (struct rdp_pixel *) dest_ptr;
             pixel = *(src_ptr + col);
             rdp->r = PIXMAN_GET_R(pixel);
