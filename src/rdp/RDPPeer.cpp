@@ -145,8 +145,6 @@ static BOOL peer_activate(freerdp_peer *client)
 
     VLOG(3) << std::dec << "PEER: client->settings->Desktop{Width,Height}: " << DesktopWidth << " " << DesktopHeight;
     context->peerObj->FullDisplayUpdate(context->peerObj->GetListener()->GetFormat());
-
-    context->peerObj->PartialDisplayUpdate(0, 0, context->peerObj->GetSurfaceWidth(), context->peerObj->GetSurfaceHeight());
     return TRUE;
 }
 
@@ -173,7 +171,7 @@ static BOOL peer_mouse_event(rdpInput *input, uint16_t flags, uint16_t x, uint16
 
 static BOOL peer_synchronize_event(rdpInput *input, uint32_t flags)
 {
-    VLOG(2) << "PEER: Client sent a synchronize event(0x: " << std::hex << flags << ")";
+    VLOG(2) << "PEER: Client sent a synchronize event(0x" << std::hex << flags << ")" << std::dec;
     return TRUE;
 }
 
@@ -315,6 +313,7 @@ RDPPeer::~RDPPeer()
 {
     freerdp_peer_context_free(client);
     freerdp_peer_free(client);
+    LOG(INFO) << "PEER " << this << ": DESTRUCTING ACHTUNG WARNING WARNING WARNING WARNING WARNING WARNING WARNING WARNING WARNING WARNING WARNING WARNING WARNING WARNING WARNING WARNING WARNING WARNING";
 }
 
 void RDPPeer::RunThread(freerdp_peer *client)
@@ -431,23 +430,23 @@ void RDPPeer::CreateSurface(PIXEL_FORMAT r)
 
     switch(r) {
         case PIXEL_FORMAT_r8g8b8a8:
-            VLOG(2) << "PEER: Launching R8G8B8A8 Displaybuffer";
+            VLOG(2) << "PEER: Launching R8G8B8A8 Displaybuffer with dimensions " << buf_width << "x" << buf_height;
             surface = new DisplayBuffer_r8g8b8a8(buf_width, buf_height, shm_buffer_region);
             rfx_context_set_pixel_format(context->rfx_context, RDP_PIXEL_FORMAT_R8G8B8A8);
             break;
         case PIXEL_FORMAT_r8g8b8:
-            VLOG(2) << "PEER: Launching R8G8B8 Displaybuffer";
+            VLOG(2) << "PEER: Launching R8G8B8 Displaybuffer with dimensions " << buf_width << "x" << buf_height;
             surface = new DisplayBuffer_r8g8b8(buf_width, buf_height, shm_buffer_region);
             // TODO: Ubuntu is a goddamn liar and I don't know what else to do about it.
             rfx_context_set_pixel_format(context->rfx_context, RDP_PIXEL_FORMAT_B8G8R8);
             break;
         case PIXEL_FORMAT_b8g8r8:
-            VLOG(2) << "PEER: Launching R8G8B8 Displaybuffer to deal with BGR data";
+            VLOG(2) << "PEER: Launching R8G8B8 Displaybuffer to deal with BGR data with dimensions " << buf_width << "x" << buf_height;
             surface = new DisplayBuffer_r8g8b8(buf_width, buf_height, shm_buffer_region);
             rfx_context_set_pixel_format(context->rfx_context, RDP_PIXEL_FORMAT_B8G8R8);
             break;
         case PIXEL_FORMAT_a8r8g8b8:
-            VLOG(2) << "PEER: Launching A8R8G8B8 Displaybuffer";
+            VLOG(2) << "PEER: Launching A8R8G8B8 Displaybuffer with dimensions " << buf_width << "x" << buf_height;
             surface = new DisplayBuffer_a8r8g8b8(buf_width, buf_height, shm_buffer_region);
             rfx_context_set_pixel_format(context->rfx_context, RDP_PIXEL_FORMAT_R8G8B8A8);
         default:
@@ -459,6 +458,8 @@ void RDPPeer::CreateSurface(PIXEL_FORMAT r)
 void RDPPeer::FullDisplayUpdate(pixman_format_code_t f)
 {
     PIXEL_FORMAT r;
+    buf_width = listener->GetWidth();
+    buf_height = listener->GetHeight();
 
     try {
         r = GetPixelFormatForPixmanFormat(f);
@@ -471,14 +472,14 @@ void RDPPeer::FullDisplayUpdate(pixman_format_code_t f)
         return;
     }
 
+    VLOG(3) << "PEER " << this << ": Attempting to take lock on surface to recreate";
     {
         std::lock_guard<std::mutex> lock(surface_lock);
+        VLOG(3) << "PEER " << this << ": Locked surface to recreate";
         delete surface;
         CreateSurface(r);
     }
-
-    buf_width = listener->GetWidth();
-    buf_height = listener->GetHeight();
+    VLOG(3) << "PEER " << this << ": Recreated display surface object; lock released";
 
     UpdateRegion(0, 0, buf_width, buf_height, TRUE);
 }
@@ -493,6 +494,10 @@ void RDPPeer::UpdateRegion(uint32_t x, uint32_t y, uint32_t w, uint32_t h, BOOL 
 
     if (!context->activated) {
         VLOG(2) << "PEER: Context isn't activated, skipping";
+        return;
+    }
+    if (surface == nullptr || surface->isDestructed()) {
+        VLOG(3) << "PEER: Surface has been destructed, skipping update";
         return;
     }
 
@@ -527,24 +532,27 @@ void RDPPeer::UpdateRegion(uint32_t x, uint32_t y, uint32_t w, uint32_t h, BOOL 
         rect.width = w;
         rect.height = h;
 
+        VLOG(3) << "PEER " << this << ": Attempting to take lock on server surface now for update [(" << (int) x << ", " << (int) y << ") " << (int) w << "x" << (int) h << "];";
         {
             std::lock_guard<std::mutex> lock(surface_lock);
+            VLOG(3) << "PEER " << this << ": Lock on server surface taken for update [(" << (int) x << ", " << (int) y << ") " << (int) w << "x" << (int) h << "];";
             surface->FillDirtyRegion(x, y, w, h, dirty);
+
+            int scanline = surface->GetScanline(w);
+
+            rfx_compose_message(context->rfx_context, s, &rect, 1, dirty, rect.width, rect.height, scanline);
+
+            cmd->bitmapDataLength = Stream_GetPosition(s);
+            cmd->bitmapData = Stream_Buffer(s);
+            cmd->codecID = client->settings->RemoteFxCodecId;
+            cmd->skipCompression = TRUE;
+
+            update->SurfaceBits(update->context, cmd);
         }
-
-        int scanline = surface->GetScanline(w);
-
-
-        rfx_compose_message(context->rfx_context, s, &rect, 1, dirty, rect.width, rect.height, scanline);
-
-        cmd->bitmapDataLength = Stream_GetPosition(s);
-        cmd->bitmapData = Stream_Buffer(s);
-        cmd->codecID = client->settings->RemoteFxCodecId;
-        cmd->skipCompression = TRUE;
-
-        update->SurfaceBits(update->context, cmd);
+        VLOG(3) << "PEER " << this << ": Server surface lock released for update [(" << (int) x << ", " << (int) y << ") " << (int) w << "x" << (int) h << "];";
     }
 
     end_frame(client);
     free(dirty);
+    dirty = NULL;
 }
