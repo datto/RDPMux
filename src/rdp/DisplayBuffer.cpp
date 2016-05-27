@@ -25,6 +25,7 @@ DisplayBuffer::DisplayBuffer(uint32_t x, uint32_t y, void *shm)
     tile_h = (buf_height % 64 != 0) ? (buf_height / 64 + 1) * 64 : buf_height;
 
     shm_buffer_region = shm;
+    destructed = false;
 }
 
 pixman_format_code_t DisplayBuffer::GetDisplayBufferFormat()

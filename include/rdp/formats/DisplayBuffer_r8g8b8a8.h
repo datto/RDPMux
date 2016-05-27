@@ -24,6 +24,7 @@ class DisplayBuffer_r8g8b8a8 : public DisplayBuffer {
 
 public:
     DisplayBuffer_r8g8b8a8(uint32_t x, uint32_t y, void *shm);
+    ~DisplayBuffer_r8g8b8a8();
 
     void FillDirtyRegion(uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint8_t *dirty);
     int GetScanline(uint32_t x);

@@ -17,7 +17,8 @@
 #include <stdint.h>
 #include "rdp/formats/DisplayBuffer_r8g8b8a8.h"
 
-DisplayBuffer_r8g8b8a8::DisplayBuffer_r8g8b8a8(uint32_t x, uint32_t y, void *shm) : DisplayBuffer(x, y, shm)
+DisplayBuffer_r8g8b8a8::DisplayBuffer_r8g8b8a8(uint32_t x, uint32_t y, void *shm)
+        : DisplayBuffer(x, y, shm)
 {
 
 }
@@ -56,6 +57,10 @@ void DisplayBuffer_r8g8b8a8::FillDirtyRegion(uint32_t x, uint32_t y, uint32_t w,
             rdp->b = PIXMAN_GET_B(pixel);
             dest_ptr += 4;
         }
-        dest_ptr += skip;
     }
+}
+
+DisplayBuffer_r8g8b8a8::~DisplayBuffer_r8g8b8a8()
+{
+    destructed = true;
 }

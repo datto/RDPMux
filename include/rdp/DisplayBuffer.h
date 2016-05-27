@@ -77,6 +77,8 @@ public:
      */
     void SetShmRegion(void *region);
 
+    bool isDestructed() { return destructed; }
+
     /**
      * @brief Get the pixel format of the frame buffer.
      *
@@ -119,6 +121,11 @@ protected:
      * @brief The subpixel layout of the framebuffer.
      */
     pixman_format_code_t format;
+
+    /**
+     * @brief Set when the buffer is to be destroyed.
+     */
+    bool destructed;
 };
 
 /**

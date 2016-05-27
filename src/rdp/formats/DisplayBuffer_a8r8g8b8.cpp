@@ -58,3 +58,8 @@ void DisplayBuffer_a8r8g8b8::FillDirtyRegion(uint32_t x, uint32_t y, uint32_t w,
         dest_ptr += skip;
     }
 }
+
+DisplayBuffer_a8r8g8b8::~DisplayBuffer_a8r8g8b8()
+{
+    destructed = true;
+}
