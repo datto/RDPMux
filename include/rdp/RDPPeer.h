@@ -21,6 +21,7 @@
 #include <freerdp/peer.h>
 #include <freerdp/server/audin.h>
 #include <freerdp/server/rdpsnd.h>
+#include <atomic>
 
 #include "RDPListener.h"
 #include "DisplayBuffer.h"
@@ -174,7 +175,7 @@ struct peer_context {
     HANDLE debug_channel_thread;
     audin_server_context *audin;
     BOOL audin_open;
-    UINT32 frame_id;
+    std::atomic_int frame_id;
     RdpsndServerContext *rdpsound;
 };
 typedef struct peer_context PeerContext;
