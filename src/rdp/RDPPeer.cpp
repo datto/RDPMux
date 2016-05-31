@@ -85,7 +85,7 @@ fail_nsc_context:
     rfx_context_free(context->rfx_context);
     context->rfx_context = NULL;
 fail_rfx_context:
-    return TRUE;
+    return FALSE;
 }
 
 static void peer_context_free(freerdp_peer *client, PeerContext *context)
@@ -145,6 +145,7 @@ static BOOL peer_activate(freerdp_peer *client)
 
     VLOG(3) << std::dec << "PEER: client->settings->Desktop{Width,Height}: " << DesktopWidth << " " << DesktopHeight;
     context->peerObj->FullDisplayUpdate(context->peerObj->GetListener()->GetFormat());
+//    context->peerObj->PartialDisplayUpdate(0, 0, DesktopWidth, DesktopHeight);
     return TRUE;
 }
 
@@ -172,6 +173,8 @@ static BOOL peer_mouse_event(rdpInput *input, uint16_t flags, uint16_t x, uint16
 static BOOL peer_synchronize_event(rdpInput *input, uint32_t flags)
 {
     VLOG(2) << "PEER: Client sent a synchronize event(0x" << std::hex << flags << ")" << std::dec;
+//    PeerContext *ctx = (PeerContext *) input->context;
+//    ctx->peerObj->FullDisplayUpdate(ctx->peerObj->GetListener()->GetFormat());
     return TRUE;
 }
 
@@ -419,6 +422,7 @@ PIXEL_FORMAT RDPPeer::GetPixelFormatForPixmanFormat(pixman_format_code_t f)
             return PIXEL_FORMAT_r8g8b8;
         case PIXMAN_b8g8r8:
             return PIXEL_FORMAT_b8g8r8;
+        case PIXMAN_r5g6b5:
         default:
             throw new std::invalid_argument("Pixel format not supported");
     }
@@ -427,6 +431,7 @@ PIXEL_FORMAT RDPPeer::GetPixelFormatForPixmanFormat(pixman_format_code_t f)
 void RDPPeer::CreateSurface(PIXEL_FORMAT r)
 {
     PeerContext *context = (PeerContext *) client->context;
+//    std::lock_guard<std::mutex> lock(surface_lock);
 
     switch(r) {
         case PIXEL_FORMAT_r8g8b8a8:
@@ -490,6 +495,7 @@ void RDPPeer::UpdateRegion(uint32_t x, uint32_t y, uint32_t w, uint32_t h, BOOL 
     SURFACE_BITS_COMMAND *cmd = &update->surface_bits_command;
     PeerContext *context = (PeerContext *) client->context;
     wStream *s = nullptr;
+    int scanline = 0;
     uint8_t *dirty;
 
     if (!context->activated) {
@@ -505,14 +511,14 @@ void RDPPeer::UpdateRegion(uint32_t x, uint32_t y, uint32_t w, uint32_t h, BOOL 
 
     // create update metadata struct
     cmd->bpp = 32;
-    cmd->destLeft = x;
-    cmd->destTop = y;
-    cmd->destBottom = y+h;
-    cmd->destRight = x+w;
-    cmd->width = w;
-    cmd->height = h;
+    cmd->destLeft = 0;
+    cmd->destTop = 0;
+    cmd->destBottom = buf_height;
+    cmd->destRight = buf_width;
+    cmd->width = buf_width;
+    cmd->height = buf_height;
 
-    dirty = (uint8_t *) calloc(w * h, sizeof(uint32_t));
+    dirty = (uint8_t *) calloc(buf_width * buf_height, sizeof(uint32_t));
     if (!dirty) {
         std::cerr << "WAAAAAAAA D:" << std::endl;
         return;
@@ -529,26 +535,32 @@ void RDPPeer::UpdateRegion(uint32_t x, uint32_t y, uint32_t w, uint32_t h, BOOL 
 
         rect.x = 0;
         rect.y = 0;
-        rect.width = w;
-        rect.height = h;
+        rect.width = buf_width;
+        rect.height = buf_height;
 
         VLOG(3) << "PEER " << this << ": Attempting to take lock on server surface now for update [(" << (int) x << ", " << (int) y << ") " << (int) w << "x" << (int) h << "];";
         {
             std::lock_guard<std::mutex> lock(surface_lock);
-            VLOG(3) << "PEER " << this << ": Lock on server surface taken for update [(" << (int) x << ", " << (int) y << ") " << (int) w << "x" << (int) h << "];";
-            surface->FillDirtyRegion(x, y, w, h, dirty);
-
-            int scanline = surface->GetScanline(w);
-
-            rfx_compose_message(context->rfx_context, s, &rect, 1, dirty, rect.width, rect.height, scanline);
-
-            cmd->bitmapDataLength = Stream_GetPosition(s);
-            cmd->bitmapData = Stream_Buffer(s);
-            cmd->codecID = client->settings->RemoteFxCodecId;
-            cmd->skipCompression = TRUE;
-
-            update->SurfaceBits(update->context, cmd);
+            VLOG(3) << "PEER " << this << ": Lock on server surface taken for update [(" << (int) x << ", " <<
+                    (int) y << ") " << (int) w << "x" << (int) h << "];";
+            surface->FillDirtyRegion(0, 0, buf_width, buf_height, dirty);
+            scanline = surface->GetScanline(buf_width);
         }
+
+        if (scanline > 0) {
+            rfx_compose_message(context->rfx_context, s, &rect, 1, dirty, rect.width, rect.height, scanline);
+        } else {
+            LOG(WARNING) << "PEER " << this << ": Scanline did not exist, something went wrong with the synchronization!!";
+            return;
+        }
+
+
+        cmd->bitmapDataLength = Stream_GetPosition(s);
+        cmd->bitmapData = Stream_Buffer(s);
+        cmd->codecID = client->settings->RemoteFxCodecId;
+        cmd->skipCompression = TRUE;
+
+        update->SurfaceBits(update->context, cmd);
         VLOG(3) << "PEER " << this << ": Server surface lock released for update [(" << (int) x << ", " << (int) y << ") " << (int) w << "x" << (int) h << "];";
     }
 
