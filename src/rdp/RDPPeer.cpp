@@ -173,8 +173,8 @@ static BOOL peer_mouse_event(rdpInput *input, uint16_t flags, uint16_t x, uint16
 static BOOL peer_synchronize_event(rdpInput *input, uint32_t flags)
 {
     VLOG(2) << "PEER: Client sent a synchronize event(0x" << std::hex << flags << ")" << std::dec;
-//    PeerContext *ctx = (PeerContext *) input->context;
-//    ctx->peerObj->FullDisplayUpdate(ctx->peerObj->GetListener()->GetFormat());
+    PeerContext *ctx = (PeerContext *) input->context;
+    ctx->peerObj->FullDisplayUpdate(ctx->peerObj->GetListener()->GetFormat());
     return TRUE;
 }
 
