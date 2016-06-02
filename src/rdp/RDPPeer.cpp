@@ -144,8 +144,6 @@ static BOOL peer_activate(freerdp_peer *client)
     client->settings->CompressionLevel = PACKET_COMPR_TYPE_RDP61;
 
     VLOG(3) << std::dec << "PEER: client->settings->Desktop{Width,Height}: " << DesktopWidth << " " << DesktopHeight;
-    context->peerObj->FullDisplayUpdate(context->peerObj->GetListener()->GetFormat());
-//    context->peerObj->PartialDisplayUpdate(0, 0, DesktopWidth, DesktopHeight);
     return TRUE;
 }
 
@@ -431,7 +429,6 @@ PIXEL_FORMAT RDPPeer::GetPixelFormatForPixmanFormat(pixman_format_code_t f)
 void RDPPeer::CreateSurface(PIXEL_FORMAT r)
 {
     PeerContext *context = (PeerContext *) client->context;
-//    std::lock_guard<std::mutex> lock(surface_lock);
 
     switch(r) {
         case PIXEL_FORMAT_r8g8b8a8:
@@ -523,8 +520,6 @@ void RDPPeer::UpdateRegion(uint32_t x, uint32_t y, uint32_t w, uint32_t h, BOOL 
         std::cerr << "WAAAAAAAA D:" << std::endl;
         return;
     }
-
-    //VLOG(2) << std::dec << "PEER: calloc() gave us " << malloc_usable_size(dirty) << " bytes";
 
     // begin the RDP frame
     begin_new_frame(update, context);
