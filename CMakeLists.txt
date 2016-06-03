@@ -24,52 +24,61 @@ file(GLOB_RECURSE QEMU_RDP_SOURCE_FILES "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp" 
 
 add_executable(rdpmux ${QEMU_RDP_SOURCE_FILES})
 
-find_package(RT)
+find_package(RT REQUIRED)
 target_link_libraries(rdpmux ${RT_LIBRARIES})
 
-find_package(Threads)
+find_package(Threads REQUIRED)
 target_link_libraries(rdpmux ${CMAKE_THREAD_LIBS_INIT})
 
-find_package(Nanomsg)
-target_link_libraries(rdpmux ${NANOMSG_LIBRARY})
+find_package(ZeroMQ REQUIRED)
+if(ZEROMQ_FOUND)
+    include_directories(rdpmux ${ZEROMQ_INCLUDE_DIRS})
+    target_link_libraries(rdpmux ${ZEROMQ_LIBRARIES})
+endif(ZEROMQ_FOUND)
 
-find_package(GLibmm)
+find_package(CZMQ REQUIRED)
+if(CZMQ_FOUND)
+    include_directories(rdpmux ${CZMQ_INCLUDE_DIRS})
+    target_link_libraries(rdpmux ${CZMQ_LIBRARIES})
+endif(CZMQ_FOUND)
+
+find_package(GLibmm REQUIRED)
 if (GLIBMM2_FOUND)
     include_directories(${GLIBMM2_INCLUDE_DIR})
     target_link_libraries(rdpmux ${GLIBMM2_LIBRARY})
 endif(GLIBMM2_FOUND)
 
-find_package(Glib2)
+find_package(Glib2 REQUIRED)
 if(GLIB2_FOUND)
     include_directories(${GLIB2_INCLUDE_DIRS})
     target_link_libraries(rdpmux ${GLIB2_LIBRARIES})
 endif(GLIB2_FOUND)
 
-find_package(Sigc++)
+find_package(Sigc++ REQUIRED)
 if(SIGC++_FOUND)
     include_directories(${SIGC++_INCLUDE_DIR})
     target_link_libraries(rdpmux ${SIGC++_LIBRARY})
 endif(SIGC++_FOUND)
 
-find_package(Giomm)
+find_package(Giomm REQUIRED)
 if(GIOMM_FOUND)
     include_directories(${GIOMM_INCLUDE_DIR})
     target_link_libraries(rdpmux ${GIOMM_LIBRARY})
 endif(GIOMM_FOUND)
 
-find_package(FreeRDP)
+find_package(FreeRDP REQUIRED)
 if(FREERDP_FOUND)
     include_directories(${FREERDP_INCLUDE_DIRS})
     target_link_libraries(rdpmux ${FREERDP_LIBRARIES})
 endif(FREERDP_FOUND)
 
-find_package(Msgpack)
+find_package(Msgpack REQUIRED)
 if(MSGPACK_FOUND)
     include_directories(${MSGPACK_INCLUDE_DIR})
     target_link_libraries(rdpmux ${MSGPACK_LIBRARIES})
 endif(MSGPACK_FOUND)
 
-find_package(Pixman)
+find_package(Pixman REQUIRED)
 target_link_libraries(rdpmux ${PIXMAN_LIBRARY})
 include_directories(${PIXMAN_INCLUDE_DIR})
 
