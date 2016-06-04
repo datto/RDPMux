@@ -33,8 +33,7 @@ po::variables_map vm;
 
 INITIALIZE_EASYLOGGINGPP
 
-std::list<RDPServerWorker *> worker_list;
-uint16_t port = 0;
+std::unique_ptr<RDPServerWorker> broker;
 
 namespace {
     static Glib::RefPtr<Gio::DBus::NodeInfo> introspection_data;
@@ -100,34 +99,19 @@ static void on_method_call(const Glib::RefPtr<Gio::DBus::Connection>& conn,
             return;
         }
 
-        // TODO: make sure this uses the correct path
-        std::string suffix = "/rdpmux";
-        std::string tmp_dir_path = Glib::get_tmp_dir() + suffix;
-
-        // check for existence of tmp directory
-        if (opendir(tmp_dir_path.c_str()) == NULL) {
-            if (errno == ENOTDIR || errno == ENOENT) {
-                // create directory with 777 permissions
-                if (mkdir(tmp_dir_path.c_str(), S_IRWXU | S_IRWXG | S_IRWXO) < 0) {
-                    LOG(ERROR) << "Error creating tmp dir " << tmp_dir_path << " : " << strerror(errno);
-                    return;
-                }
-            } else {
-                LOG(ERROR) << "Error while testing for tmp directory existence: " << strerror(errno);
-                return;
-            }
+        bool ret = broker->RegisterNewVM(uuid);
+        if (!ret) {
+            LOG(WARNING) << "VM Registration failed!";
+            invocation->return_value(
+                    Glib::VariantContainerBase::create_tuple(
+                            Glib::Variant<std::string>::create("")
+                    )
+            );
+            return;
         }
 
-        const Glib::ustring socket_path = Glib::ustring::compose("ipc://%1/%2.socket", tmp_dir_path, id);
-
-        RDPServerWorker *worker = new RDPServerWorker(socket_path, id, port++, uuid);
-        worker->setDBusConnection(conn);
-        worker_list.push_back(worker);
-        worker->start();
-
-        const auto response_variant = Glib::Variant<Glib::ustring>::create(socket_path);
+        const auto response_variant = Glib::Variant<Glib::ustring>::create(vm["socket-path"].as<Glib::ustring>());
         Glib::VariantContainerBase response = Glib::VariantContainerBase::create_tuple(response_variant);
-
 
         invocation->return_value(response);
     }
@@ -185,6 +169,11 @@ void process_options(const int argc, const char *argv[])
     po::basic_command_line_parser<char> parser(argc, argv);
     try {
         po::options_description desc("Usage");
+
+        // set up default path to be in world-rw tmp dir
+        std::string suffix = "/rdpmux.sock";
+        std::string tmp_dir_path = Glib::get_tmp_dir() + suffix;
+
         desc.add_options()
                 (
                         "help,h",
@@ -198,6 +187,11 @@ void process_options(const int argc, const char *argv[])
                         "port,p",
                         po::value<uint16_t>()->default_value(3901),
                         "Port to begin spawning listeners on."
+                )
+                (
+                        "socket-path,s",
+                        po::value<std::string>()->default_value(tmp_dir_path),
+                        "VM communication socket path. Must be writable"
                 )
                 (
                         "certificate-dir,d",
@@ -215,8 +209,9 @@ void process_options(const int argc, const char *argv[])
 
         po::notify(vm);
         std::string test_cert = vm["certificate-dir"].as<std::string>();
-        port = vm["port"].as<uint16_t>();
+        std::string test_path = vm["socket-path"].as<std::string>();
         LOG(INFO) << "Certificate path is " << test_cert;
+        LOG(INFO) << "Socket path is " << test_path;
     } catch (const std::exception &ex) {
         LOG(WARNING) << ex.what();
         exit(1);
@@ -240,6 +235,23 @@ int main(int argc, const char* argv[])
         introspection_data = Gio::DBus::NodeInfo::create_for_xml(introspection_xml);
     } catch (const Glib::Error &ex) {
         LOG(FATAL) << "Unable to create introspection data: " << ex.what() << ".";
+        return 1;
+    }
+
+    auto port = vm["port"].as<uint16_t>();
+    auto socket = vm["socket-path"].as<std::string>();
+    if (port > 0 && port < 65535) {
+        broker = make_unique(port, socket);
+        if (port < 1024) {
+            LOG(WARNING) << "Port number is low (below 1024), may conflict with other system services!";
+        }
+    } else {
+        LOG(FATAL) << "Invalid port number " << port;
+        return 1;
+    }
+
+    if (broker->Initialize() == false) {
+        LOG(FATAL) << "Could not initialize ZeroMQ broker, exiting";
         return 1;
     }
 
