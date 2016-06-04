@@ -25,7 +25,6 @@
 
 #include "RDPListener.h"
 #include "DisplayBuffer.h"
-#include "nanomsg.h"
 
 /**
  * @brief Recognized RDPMux pixel format archetypes.

@@ -26,7 +26,6 @@
 #include <msgpack/object.hpp>
 #include <freerdp/channels/channels.h>
 
-#include "nanomsg.h"
 #include "rdp/RDPListener.h"
 #include "util/logging.h"
 #include "common.h"

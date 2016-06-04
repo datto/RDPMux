@@ -22,7 +22,6 @@
 #include <glibmm/dispatcher.h>
 
 #include "util/MessageQueue.h"
-#include "nanomsg.h"
 #include "rdp/RDPListener.h"
 
 

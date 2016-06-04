@@ -23,7 +23,6 @@
 #include <mutex>
 #include <glibmm/ustring.h>
 #include "RDPPeer.h"
-#include "nanomsg.h"
 
 class RDPPeer; // I'm very bad at organizing C++ code.
 

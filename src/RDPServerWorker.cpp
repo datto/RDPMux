@@ -14,8 +14,6 @@
  * limitations under the License.
  */
 
-#include <nanomsg/pair.h>
-
 #include <memory>
 #include <util/MessageQueue.h>
 #include <iostream>
@@ -25,9 +23,7 @@
 #include <thread>
 #include <util/logging.h>
 #include <giomm/dbusconnection.h>
-#include "nanomsg.h"
 #include "RDPServerWorker.h"
-#include "common.h"
 
 Glib::ustring RDPServerWorker::introspection_xml =
         "<node>"
