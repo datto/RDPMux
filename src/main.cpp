@@ -96,7 +96,8 @@ static void on_method_call(const Glib::RefPtr<Gio::DBus::Connection>& conn,
             return;
         }
 
-        const auto response_variant = Glib::Variant<Glib::ustring>::create(vm["socket-path"].as<Glib::ustring>());
+        auto g_res = Glib::ustring(vm["socket-path"].as<std::string>());
+        const auto response_variant = Glib::Variant<Glib::ustring>::create(g_res);
         Glib::VariantContainerBase response = Glib::VariantContainerBase::create_tuple(response_variant);
 
         invocation->return_value(response);
