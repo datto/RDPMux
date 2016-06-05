@@ -14,19 +14,10 @@
  * limitations under the License.
  */
 
-#include <iostream>
-#include <thread>
-#include <string>
-#include <csignal>
-
-#include <sys/types.h>
-
-#include <boost/program_options.hpp>
-#include <giomm-2.4/giomm.h>
-
 #include "common.h"
+#include <giomm-2.4/giomm.h>
+#include <boost/program_options.hpp>
 #include "RDPServerWorker.h"
-#include "util/logging.h"
 
 namespace po = boost::program_options;
 po::variables_map vm;
@@ -57,14 +48,9 @@ namespace {
 
 void handle_SIGINT(int signal)
 {
-    // send shutdown signals to all ServerWorkers
+    // send shutdown signal to RDPServerWorker
     LOG(INFO) << "SIGINT received, cleaning up";
-    if (worker_list.size() > 0) {
-        for (auto i = worker_list.begin(); i != worker_list.end(); ++i) {
-            delete *i;
-        }
-    }
-    exit(0);
+    broker->~RDPServerWorker();
 }
 
 // handles all method call invocations. Basically if you have more than one
@@ -80,13 +66,14 @@ static void on_method_call(const Glib::RefPtr<Gio::DBus::Connection>& conn,
     if (method_name == "Register") {
         Glib::Variant<int> id_variant;
         Glib::Variant<int> ver_variant;
-        Glib::Variant<Glib::ustring> uuid_variant;
+        Glib::Variant<std::string> uuid_variant;
+
         parameters.get_child(id_variant, 0);
         parameters.get_child(ver_variant, 1);
         parameters.get_child(uuid_variant, 2);
         int id = id_variant.get();
         int ver = ver_variant.get();
-        Glib::ustring uuid = uuid_variant.get();
+        std::string uuid = uuid_variant.get();
 
         // TODO: flesh this code out, needs to be more comprehensive for when we bump protocol
         if (ver != 2) {
@@ -99,8 +86,7 @@ static void on_method_call(const Glib::RefPtr<Gio::DBus::Connection>& conn,
             return;
         }
 
-        bool ret = broker->RegisterNewVM(uuid);
-        if (!ret) {
+        if (!broker->RegisterNewVM(uuid)) {
             LOG(WARNING) << "VM Registration failed!";
             invocation->return_value(
                     Glib::VariantContainerBase::create_tuple(
@@ -150,6 +136,7 @@ void on_bus_acquired(const Glib::RefPtr<Gio::DBus::Connection> &connection, cons
         LOG(WARNING) << "DBus registration failed, bailing. Reason: " << ex.what();
         exit(129);
     }
+    broker->setDBusConnection(connection);
     LOG(INFO) << "RDPMux initialized successfully!";
     return;
 }
@@ -171,7 +158,7 @@ void process_options(const int argc, const char *argv[])
         po::options_description desc("Usage");
 
         // set up default path to be in world-rw tmp dir
-        std::string suffix = "/rdpmux.sock";
+        std::string suffix = "/rdpmux/rdpmux.sock";
         std::string tmp_dir_path = Glib::get_tmp_dir() + suffix;
 
         desc.add_options()
@@ -240,8 +227,14 @@ int main(int argc, const char* argv[])
 
     auto port = vm["port"].as<uint16_t>();
     auto socket = vm["socket-path"].as<std::string>();
+
+    if (socket.at(0) != '/') {
+        LOG(FATAL) << "Absolute paths only, please!";
+        return 1;
+    }
+
     if (port > 0 && port < 65535) {
-        broker = make_unique(port, socket);
+        broker = make_unique<RDPServerWorker>(port, socket);
         if (port < 1024) {
             LOG(WARNING) << "Port number is low (below 1024), may conflict with other system services!";
         }
@@ -250,8 +243,8 @@ int main(int argc, const char* argv[])
         return 1;
     }
 
-    if (broker->Initialize() == false) {
-        LOG(FATAL) << "Could not initialize ZeroMQ broker, exiting";
+    if (!broker->Initialize()) {
+        LOG(FATAL) << "Could not initialize RDPServerWorker, exiting";
         return 1;
     }
 

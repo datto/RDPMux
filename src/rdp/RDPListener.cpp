@@ -14,23 +14,15 @@
  * limitations under the License.
  */
 
-#include <iostream>
-#include <tuple>
-#include <functional>
-#include <cstring>
-
+#include "rdp/RDPListener.h"
+#include "RDPServerWorker.h"
+#include <freerdp/channels/channels.h>
+#include <msgpack/object.hpp>
+#include <glibmm/ustring.h>
+#include "rdp/RDPPeer.h"
 #include <sys/mman.h>
 #include <fcntl.h>
 
-#include <msgpack/sbuffer.hpp>
-#include <msgpack/object.hpp>
-#include <freerdp/channels/channels.h>
-
-#include "rdp/RDPListener.h"
-#include "util/logging.h"
-#include "common.h"
-
-thread_local nn::socket *my_nn_socket = NULL;
 thread_local RDPListener *rdp_listener_object = NULL;
 
 /**
@@ -38,7 +30,7 @@ thread_local RDPListener *rdp_listener_object = NULL;
  *
  * This function marshals the arguments needed to start up an RDPPeer thread, and passes them into the new thread
  * function. The thread created runs RDPPeer::PeerThread as a detached thread. For reasons lost to the mists of time,
- * this function actually uses the winRP API to start the thread instead of straight pthreads.
+ * this function actually uses the winPR API to start the thread instead of straight pthreads.
  *
  * @returns Success of the thread creation
  *
@@ -50,7 +42,7 @@ BOOL StartPeerLoop(freerdp_listener *instance, freerdp_peer *client)
     HANDLE hThread;
 
     // get our args together, and start the thread
-    auto arg_tuple = new std::tuple<freerdp_peer*, const nn::socket*, RDPListener *>(client, my_nn_socket, rdp_listener_object);
+    auto arg_tuple = new std::tuple<freerdp_peer*, RDPListener *>(client, rdp_listener_object);
     if (!(hThread = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE) RDPPeer::PeerThread, (void *) arg_tuple, 0, NULL))) {
         return FALSE;
     }
@@ -58,11 +50,12 @@ BOOL StartPeerLoop(freerdp_listener *instance, freerdp_peer *client)
     return TRUE;
 }
 
-RDPListener::RDPListener(nn::socket *sock) : shm_buffer(0)
+RDPListener::RDPListener(std::string uuid, uint16_t port, RDPServerWorker *parent) : shm_buffer(nullptr),
+                                                                                     port(port),
+                                                                                     parent(parent),
+                                                                                     uuid(uuid)
 {
     WTSRegisterWtsApiFunctionTable(FreeRDP_InitWtsApi());
-    this->sock = sock;
-    my_nn_socket = sock;
     stop = false;
 
     listener = freerdp_listener_new();
@@ -90,7 +83,7 @@ RDPListener::~RDPListener()
     WSACleanup();
 }
 
-void RDPListener::RunServer(uint16_t port)
+void RDPListener::RunServer()
 {
     void *connections[32];
     DWORD count = 0;
@@ -128,14 +121,39 @@ void RDPListener::RunServer(uint16_t port)
         }
     }
     VLOG(1) << "LISTENER " << this << ": Main loop exited";
-    // after the main loop, we should do nothing. In a perfect world, the destructor is called automatically
-    // when the object goes out of scope, which should be soonish after the resolution of this function.
+    parent->UnregisterVM(this->uuid, this->port); // this will trigger destruction of the RDPListener object.
+}
+
+void RDPListener::processOutgoingMessage(msgpack::sbuffer sbuf)
+{
+    QueueItem item = std::make_tuple(make_unique(sbuf), this->uuid);
+    parent->queueOutgoingMessage(item);
+}
+
+void RDPListener::processIncomingMessage(std::vector<uint32_t> rvec)
+{
+    // we filter by what type of message it is
+    if (rvec[0] == DISPLAY_UPDATE) {
+        VLOG(1) << "WORKER " << this << ": DisplayWorker processing display update event now";
+        processDisplayUpdate(rvec);
+    } else if (rvec[0] == DISPLAY_SWITCH) {
+        VLOG(2) << "WORKER " << this << ": DisplayWorker processing display switch event now";
+        processDisplaySwitch(rvec);
+    } else if (rvec[0] == SHUTDOWN) {
+        VLOG(2) << "WORKER " << this << ": Shutdown event received!";
+        // TODO: process shutdown events
+    } else {
+        // what the hell have you sent me
+        LOG(WARNING) << "Invalid message type sent.";
+    }
 }
 
 void RDPListener::processDisplayUpdate(std::vector<uint32_t> msg)
 {
-    // note that under current calling conditions, this will run in the thread of the RDPServerWorker associated with
-    // the VM.
+    // note that under current calling conditions, this will run in the mainloop of the RDPServerWorker. This is what
+    // allows us to call RDPServerWorker::SendMessage without worrying about thread-safety. IF YOU EVER MOVE THINGS
+    // AROUND SUCH THAT THIS FUNCTION IS RUN IN A SEPARATE THREAD, YOU'LL NEED TO FIGURE OUT A BETTER WAY TO SEND
+    // MESSAGES! I recommend a queue, they're super swell.
 
     uint32_t x = msg.at(1),
              y = msg.at(2),
@@ -162,7 +180,7 @@ void RDPListener::processDisplayUpdate(std::vector<uint32_t> msg)
     msgpack::sbuffer sbuf;
     msgpack::pack(sbuf, vec);
 
-    sock->send(sbuf.data(), sbuf.size(), 0);
+    parent->sendMessage(sbuf, uuid);
     VLOG(1) << "LISTENER " << this << ": Sent ack to QEMU process.";
 }
 
@@ -171,7 +189,7 @@ pixman_format_code_t RDPListener::GetFormat()
     return format;
 }
 
-void RDPListener::processDisplaySwitch(std::vector<uint32_t> msg, int vm_id)
+void RDPListener::processDisplaySwitch(std::vector<uint32_t> msg)
 {
     // note that under current calling conditions, this will run in the thread of the RDPServerWorker associated with
     // the VM.
@@ -186,7 +204,7 @@ void RDPListener::processDisplaySwitch(std::vector<uint32_t> msg, int vm_id)
 
     // map in new shmem region if it's the first time
     if (!shm_buffer) {
-        const Glib::ustring path = Glib::ustring::compose("/%1.rdpmux", vm_id);
+        const Glib::ustring path = Glib::ustring::compose("/%1.rdpmux", uuid);
         shim_fd = shm_open(path.data(), O_RDONLY, S_IRUSR | S_IRGRP | S_IROTH);
         VLOG(2) << "LISTENER " << this << ": shim_fd is " << shim_fd;
 

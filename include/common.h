@@ -17,6 +17,10 @@
 #ifndef QEMU_RDP_COMMON_H
 #define QEMU_RDP_COMMON_H
 
+#include <memory>
+#include <cstdbool>
+#include "util/logging.h"
+
 /**
  * @brief enum of message types.
  */

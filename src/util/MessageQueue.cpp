@@ -16,17 +16,17 @@
 
 #include "util/MessageQueue.h"
 
-void MessageQueue::enqueue(QueueItem *item)
+void MessageQueue::enqueue(QueueItem item)
 {
     std::unique_lock<std::mutex> lock(mutex_);
-    queue_.push(item);
+    queue_.push(std::move(item));
     lock.unlock();
     cond_push_.notify_one();
 }
 
 // should block until a message is waiting in the queue,
 // so it should be okay to put this in a while loop or something.
-const QueueItem *MessageQueue::dequeue()
+const QueueItem MessageQueue::dequeue()
 {
     std::unique_lock<std::mutex> lock(mutex_);
 
@@ -34,7 +34,7 @@ const QueueItem *MessageQueue::dequeue()
         cond_push_.wait(lock);
     }
 
-    auto item = queue_.front();
+    auto item = std::move(queue_.front());
     queue_.pop();
     return item;
 }

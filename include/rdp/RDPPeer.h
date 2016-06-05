@@ -17,14 +17,11 @@
 #ifndef QEMU_RDP_RDPPEER_H
 #define QEMU_RDP_RDPPEER_H
 
-#include <freerdp/freerdp.h>
-#include <freerdp/peer.h>
-#include <freerdp/server/audin.h>
-#include <freerdp/server/rdpsnd.h>
-#include <atomic>
-
-#include "RDPListener.h"
+#include "common.h"
 #include "DisplayBuffer.h"
+#include <freerdp/freerdp.h>
+#include <atomic>
+#include <pixman.h>
 
 /**
  * @brief Recognized RDPMux pixel format archetypes.
@@ -53,9 +50,8 @@ class RDPPeer
 public:
     /**
      * @brief Creates a new RDPPeer class.
-     * @todo Refactor so that this takes just objects, without wrapping in tuple.
      */
-    RDPPeer(std::tuple<freerdp_peer*, nn::socket*, RDPListener *>);
+    RDPPeer(freerdp_peer *client, RDPListener *listener);
 
     /**
      * @brief Takes care of freeing the underlying peer_context and freerdp_peer structs.
@@ -135,7 +131,6 @@ public:
 
 private:
     freerdp_peer *client;
-    std::tuple<freerdp_peer*, nn::socket*, RDPListener *> tuple;
     void *shm_buffer_region;
     RDPListener *listener;
     DisplayBuffer *surface;

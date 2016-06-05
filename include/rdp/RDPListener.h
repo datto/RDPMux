@@ -17,14 +17,15 @@
 #ifndef QEMU_RDP_RDPLISTENER_H
 #define QEMU_RDP_RDPLISTENER_H
 
-
+#include "common.h"
+#include <freerdp/freerdp.h>
 #include <freerdp/listener.h>
+#include <pixman.h>
+#include <msgpack/sbuffer.hpp>
 #include <winpr/winsock.h>
-#include <mutex>
-#include <glibmm/ustring.h>
-#include "RDPPeer.h"
 
 class RDPPeer; // I'm very bad at organizing C++ code.
+class RDPServerWorker; // I continue to get worse at organizing C++ code.
 
 extern BOOL start_peerloop(freerdp_listener *instance, freerdp_peer *client);
 
@@ -40,9 +41,11 @@ public:
     /**
      * @brief Initializes the listener, given a nanomsg socket to communicate through.
      *
-     * @param sock The nanomsg socket to use for communication.
+     * @param uuid The UUID of the VM associated with this listener.
+     * @param port The port the listener should bind to.
+     * @param parent A pointer to the RDPServerWorker for (LIMITED) use // todo: not so limited
      */
-    RDPListener(nn::socket *sock);
+    RDPListener(std::string uuid, uint16_t port, RDPServerWorker *parent);
     /**
      * @brief Safely cleans up the freerdp_listener struct and frees all WinPR objects.
      */
@@ -50,10 +53,24 @@ public:
 
     /**
      * @brief starts the listener subroutine and loops forever on incoming connections.
-     *
-     * @param port The port to listen on.
      */
-    void RunServer(uint16_t port);
+    void RunServer();
+
+    /**
+     * @brief Processes outgoing messages from the RDP client to the VM.
+     *
+     * @param sbuf serialized msgpack object containing update.
+     */
+    void processOutgoingMessage(msgpack::sbuffer sbuf);
+
+    /**
+     * @brief Processes incoming messages from the VM.
+     *
+     * Serves as an entry point for incoming messages from the VM via the RDPServerWorker.
+     *
+     * @param vec Deserialized vector of uint32_ts comprising the message
+     */
+    void processIncomingMessage(std::vector<uint32_t> rvec);
 
     /**
      * @brief Processes display updates and sends them to peers.
@@ -80,7 +97,7 @@ public:
      * DISPLAY_SWITCH.
      * @param vm_id The ID of the VM.
      */
-    void processDisplaySwitch(std::vector<uint32_t> msg, int vm_id);
+    void processDisplaySwitch(std::vector<uint32_t> msg);
 
     /**
      * @brief Registers a peer with the RDPListener.
@@ -138,14 +155,20 @@ private:
     WSADATA wsadata;
 
     /**
-     * @brief The nanomsg socket used for communication with the VM.
+     * @brief Reference to the parent ServerWorker. NO GUARANTEES USE AT OWN RISK. //todo : guarantee
+     *
+     * @warning NEVER CALL DELETE ON THIS EVER
      */
-    nn::socket *sock;
+    RDPServerWorker *parent;
+    /**
+     * @brief Port number to listen on.
+     */
+    uint16_t port;
 
     /**
-     * @brief The path to the nanomsg socket on the filesystem.
+     * @brief UUID of the VM associated with the listener.
      */
-    Glib::ustring path;
+    std::string uuid;
 
     /**
      * @brief Mutex guarding access to the peer list.

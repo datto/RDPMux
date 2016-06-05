@@ -14,26 +14,18 @@
  * limitations under the License.
  */
 
-#include <new>
-#include <iostream>
-#include <tuple>
-#include <sstream>
-#include <cstring>
-#include <string>
-
 #include <boost/program_options.hpp>
+#include <msgpack/sbuffer.hpp>
+#include <msgpack/object.hpp>
 
-#include <msgpack.hpp>
-#include <rdp/DisplayBuffer.h>
-#include <malloc.h>
+#include <freerdp/server/rdpsnd.h>
+#include <freerdp/server/audin.h>
 
+#include "rdp/RDPPeer.h"
 #include "rdp/formats/DisplayBuffer_r8g8b8a8.h"
 #include "rdp/formats/DisplayBuffer_r8g8b8.h"
 #include "rdp/formats/DisplayBuffer_a8r8g8b8.h"
-
-#include "rdp/RDPPeer.h"
-#include "util/logging.h"
-#include "common.h"
+#include "rdp/RDPListener.h"
 
 #define RDP_SERVER_DEFAULT_HEIGHT 768
 #define RDP_SERVER_DEFAULT_WIDTH 1024
@@ -248,18 +240,11 @@ RDPListener *RDPPeer::GetListener()
     return listener;
 }
 
-RDPPeer::RDPPeer(std::tuple<freerdp_peer*, nn::socket*, RDPListener *> tuple)
+RDPPeer::RDPPeer(freerdp_peer *client, RDPListener *listener) : client(client),
+                                                                listener(listener),
+                                                                surface(nullptr),
+                                                                shm_buffer_region(listener->shm_buffer)
 {
-    freerdp_peer *client = std::get<0>(tuple);
-    RDPListener *listener = std::get<2>(tuple);
-
-    this->tuple = tuple;
-    this->client = client;
-    this->listener = listener;
-    this->surface = nullptr;
-    this->shm_buffer_region = listener->shm_buffer;
-
-
     client->ContextSize = sizeof(PeerContext);
     client->ContextNew = (psPeerContextNew) peer_context_new;
     client->ContextFree = (psPeerContextFree) peer_context_free;
@@ -353,13 +338,13 @@ void RDPPeer::RunThread(freerdp_peer *client)
 
 void *RDPPeer::PeerThread(void *arg)
 {
-    auto tuple = (std::tuple<freerdp_peer*, nn::socket*, RDPListener *> *) arg;
-
+    auto tuple = (std::tuple<freerdp_peer*, RDPListener *> *) arg;
     auto tuple_obj = *tuple;
 
     freerdp_peer *client = std::get<0>(tuple_obj);
+    RDPListener *listener = std::get<1>(tuple_obj);
 
-    std::unique_ptr<RDPPeer> peer(new RDPPeer(*tuple));
+    auto peer = make_unique<RDPPeer>(client, listener);
 
     client->Initialize(client);
 
@@ -367,7 +352,7 @@ void *RDPPeer::PeerThread(void *arg)
 
     client->Disconnect(client);
     VLOG(1) << "PEER: Client disconnected.";
-
+    delete tuple; // should be safe to do, and helps it not leak
     return NULL;
 }
 
@@ -382,9 +367,8 @@ void RDPPeer::ProcessMouseMsg(uint16_t flags, uint16_t x, uint16_t y)
     msgpack::sbuffer sbuf;
     msgpack::pack(sbuf, vec);
 
-    nn::socket *sock = std::get<1>(tuple);
     VLOG(2) << "PEER: Now sending RDP mouse client message to the QEMU VM";
-    sock->send(sbuf.data(), sbuf.size(), 0);
+    listener->processOutgoingMessage(sbuf);
 }
 
 void RDPPeer::ProcessKeyboardMsg(uint16_t flags, uint16_t keycode)
@@ -397,9 +381,8 @@ void RDPPeer::ProcessKeyboardMsg(uint16_t flags, uint16_t keycode)
     msgpack::sbuffer sbuf;
     msgpack::pack(sbuf, vec);
 
-    nn::socket *sock = std::get<1>(tuple);
     VLOG(2) << "PEER: Now sending RDP keyboard client message to the QEMU VM";
-    sock->send(sbuf.data(), sbuf.size(), 0);
+    listener->processOutgoingMessage(sbuf);
 }
 
 void RDPPeer::PartialDisplayUpdate(uint32_t x_coord, uint32_t y_coord, uint32_t width, uint32_t height)
@@ -561,5 +544,4 @@ void RDPPeer::UpdateRegion(uint32_t x, uint32_t y, uint32_t w, uint32_t h, BOOL 
 
     end_frame(client);
     free(dirty);
-    dirty = NULL;
 }
