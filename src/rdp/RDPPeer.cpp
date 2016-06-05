@@ -15,11 +15,6 @@
  */
 
 #include <boost/program_options.hpp>
-#include <msgpack/sbuffer.hpp>
-#include <msgpack/object.hpp>
-
-#include <freerdp/server/rdpsnd.h>
-#include <freerdp/server/audin.h>
 
 #include "rdp/RDPPeer.h"
 #include "rdp/formats/DisplayBuffer_r8g8b8a8.h"
@@ -241,9 +236,9 @@ RDPListener *RDPPeer::GetListener()
 }
 
 RDPPeer::RDPPeer(freerdp_peer *client, RDPListener *listener) : client(client),
+                                                                shm_buffer_region(listener->shm_buffer),
                                                                 listener(listener),
-                                                                surface(nullptr),
-                                                                shm_buffer_region(listener->shm_buffer)
+                                                                surface(nullptr)
 {
     client->ContextSize = sizeof(PeerContext);
     client->ContextNew = (psPeerContextNew) peer_context_new;
@@ -364,11 +359,8 @@ void RDPPeer::ProcessMouseMsg(uint16_t flags, uint16_t x, uint16_t y)
     vec.push_back(y);
     vec.push_back(flags);
 
-    msgpack::sbuffer sbuf;
-    msgpack::pack(sbuf, vec);
-
     VLOG(2) << "PEER: Now sending RDP mouse client message to the QEMU VM";
-    listener->processOutgoingMessage(sbuf);
+    listener->processOutgoingMessage(vec);
 }
 
 void RDPPeer::ProcessKeyboardMsg(uint16_t flags, uint16_t keycode)
@@ -378,11 +370,8 @@ void RDPPeer::ProcessKeyboardMsg(uint16_t flags, uint16_t keycode)
     vec.push_back(keycode);
     vec.push_back(flags);
 
-    msgpack::sbuffer sbuf;
-    msgpack::pack(sbuf, vec);
-
     VLOG(2) << "PEER: Now sending RDP keyboard client message to the QEMU VM";
-    listener->processOutgoingMessage(sbuf);
+    listener->processOutgoingMessage(vec);
 }
 
 void RDPPeer::PartialDisplayUpdate(uint32_t x_coord, uint32_t y_coord, uint32_t width, uint32_t height)

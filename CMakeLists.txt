@@ -20,7 +20,10 @@ set(CMAKE_CXX_FLAGS_RELEASE "${GENERAL_RELEASE_FLAGS}")
 # Source file globbing
 include_directories("${CMAKE_CURRENT_SOURCE_DIR}/include")
 include(GNUInstallDirs)
-file(GLOB_RECURSE QEMU_RDP_SOURCE_FILES "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp" "${CMAKE_CURRENT_SOURCE_DIR}/include/*.h")
+file(GLOB_RECURSE QEMU_RDP_SOURCE_FILES
+        "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/include/*.h"
+        "${CMAKE_CURRENT_SOURCE_DIR}/include/*.hpp")
 
 add_executable(rdpmux ${QEMU_RDP_SOURCE_FILES})
 

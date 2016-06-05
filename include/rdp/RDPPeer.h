@@ -23,6 +23,9 @@
 #include <atomic>
 #include <pixman.h>
 
+#include <freerdp/server/rdpsnd.h>
+#include <freerdp/server/audin.h>
+
 /**
  * @brief Recognized RDPMux pixel format archetypes.
  *

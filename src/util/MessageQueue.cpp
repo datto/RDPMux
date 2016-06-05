@@ -19,7 +19,7 @@
 void MessageQueue::enqueue(QueueItem item)
 {
     std::unique_lock<std::mutex> lock(mutex_);
-    queue_.push(std::move(item));
+    queue_.push(item);
     lock.unlock();
     cond_push_.notify_one();
 }
@@ -34,7 +34,7 @@ const QueueItem MessageQueue::dequeue()
         cond_push_.wait(lock);
     }
 
-    auto item = std::move(queue_.front());
+    auto item = queue_.front();
     queue_.pop();
     return item;
 }

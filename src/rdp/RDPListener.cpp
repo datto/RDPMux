@@ -18,7 +18,6 @@
 #include "RDPServerWorker.h"
 #include <freerdp/channels/channels.h>
 #include <msgpack/object.hpp>
-#include <glibmm/ustring.h>
 #include "rdp/RDPPeer.h"
 #include <sys/mman.h>
 #include <fcntl.h>
@@ -51,8 +50,8 @@ BOOL StartPeerLoop(freerdp_listener *instance, freerdp_peer *client)
 }
 
 RDPListener::RDPListener(std::string uuid, uint16_t port, RDPServerWorker *parent) : shm_buffer(nullptr),
-                                                                                     port(port),
                                                                                      parent(parent),
+                                                                                     port(port),
                                                                                      uuid(uuid)
 {
     WTSRegisterWtsApiFunctionTable(FreeRDP_InitWtsApi());
@@ -124,9 +123,9 @@ void RDPListener::RunServer()
     parent->UnregisterVM(this->uuid, this->port); // this will trigger destruction of the RDPListener object.
 }
 
-void RDPListener::processOutgoingMessage(msgpack::sbuffer sbuf)
+void RDPListener::processOutgoingMessage(std::vector<uint16_t> vec)
 {
-    QueueItem item = std::make_tuple(make_unique(sbuf), this->uuid);
+    QueueItem item = std::make_tuple(vec, this->uuid);
     parent->queueOutgoingMessage(item);
 }
 
@@ -173,14 +172,11 @@ void RDPListener::processDisplayUpdate(std::vector<uint32_t> msg)
     VLOG(1) << "LISTENER " << this << ": Lock released successfully! Continuing.";
 
     // send back display update complete message
-    std::vector<uint32_t> vec;
+    std::vector<uint16_t> vec;
     vec.push_back(DISPLAY_UPDATE_COMPLETE);
     vec.push_back(1);
 
-    msgpack::sbuffer sbuf;
-    msgpack::pack(sbuf, vec);
-
-    parent->sendMessage(sbuf, uuid);
+    parent->sendMessage(vec, uuid);
     VLOG(1) << "LISTENER " << this << ": Sent ack to QEMU process.";
 }
 

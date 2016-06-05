@@ -23,7 +23,7 @@
 #include <condition_variable>
 #include <queue>
 
-typedef std::tuple<std::unique_ptr<msgpack::sbuffer>, std::string> QueueItem;
+typedef std::tuple<std::vector<uint16_t>, std::string> QueueItem;
 
 /**
  * @brief A synchronized FIFO queue backed by an std::queue to hold msgpack::sbufs for processing.

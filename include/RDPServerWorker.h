@@ -17,9 +17,10 @@
 #ifndef QEMU_RDP_RDPSERVERWORKER_H
 #define QEMU_RDP_RDPSERVERWORKER_H
 
+#include <giomm/dbusconnection.h>
 #include "common.h"
 #include "util/MessageQueue.h"
-#include <giomm-2.4/giomm.h>
+#include "util/zmq_addon.hpp"
 #include "rdp/RDPListener.h"
 
 /**
@@ -89,7 +90,7 @@ public:
      * @param sbuf msgpack::sbuffer object containing the serialized data
      * @param uuid the UUID of the VM to send this message to
      */
-    void sendMessage(msgpack::sbuffer sbuf, std::string uuid);
+    void sendMessage(std::vector<uint16_t> vec, std::string uuid);
 
     /**
      * @brief queues outgoing message
@@ -106,7 +107,7 @@ protected:
     /**
      * @brief Lock guarding stop.
      */
-    Glib::Mutex stop_mutex;
+    std::mutex stop_mutex;
     /**
      * @brief Variable set to indicate when the RDPServerWorker is stopping.
      */
@@ -141,10 +142,14 @@ protected:
     MessageQueue out_queue;
 
     /**
-     * @brief czmq socket. Needs to be stored as void * to avoid conflicts.
+     * @brief ZeroMQ context.
      */
-    void *socket;
+    zmq::context_t context;
 
+    /**
+     * @brief ZeroMQ socket.
+     */
+    zmq::socket_t socket;
 
     /**
      * @brief Main loop function that receives messages and processes them for dispatch to the RDP listener.

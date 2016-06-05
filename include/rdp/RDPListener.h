@@ -61,7 +61,7 @@ public:
      *
      * @param sbuf serialized msgpack object containing update.
      */
-    void processOutgoingMessage(msgpack::sbuffer sbuf);
+    void processOutgoingMessage(std::vector<uint16_t> vec);
 
     /**
      * @brief Processes incoming messages from the VM.
