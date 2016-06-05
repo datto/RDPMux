@@ -226,15 +226,34 @@ int main(int argc, const char* argv[])
     }
 
     auto port = vm["port"].as<uint16_t>();
-    auto socket = vm["socket-path"].as<std::string>();
+    auto socket_path = vm["socket-path"].as<std::string>();
 
-    if (socket.at(0) != '/') {
+    if (socket_path.at(0) != '/') {
         LOG(FATAL) << "Absolute paths only, please!";
         return 1;
     }
 
+    // create directory if it doesn't exist
+    auto socket_dir = Glib::path_get_dirname(socket_path);
+    if (opendir(socket_dir.c_str()) == NULL) {
+        if (errno == ENOTDIR || errno == ENOENT) {
+            // create directory with 777 permissions
+            if (mkdir(socket_dir.c_str(), S_IRWXU | S_IRWXG | S_IRWXO) < 0) {
+                LOG(WARNING) << "Error creating socket directory " << socket_dir << " : " << strerror(errno);
+            }
+        } else {
+            LOG(WARNING) << "Error checking socket directory " << socket_dir << " : " << strerror(errno);
+        }
+    }
+
+    // final check to make sure port is within bounds
     if (port > 0 && port < 65535) {
-        broker = make_unique<RDPServerWorker>(port, socket);
+        try {
+            broker = make_unique<RDPServerWorker>(port, socket_path); // create broker
+        } catch (std::exception &e) {
+            LOG(FATAL) << "Error initializing socket: " << e.what();
+            return 1;
+        }
         if (port < 1024) {
             LOG(WARNING) << "Port number is low (below 1024), may conflict with other system services!";
         }
