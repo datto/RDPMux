@@ -76,10 +76,12 @@ bool RDPServerWorker::RegisterNewVM(std::string uuid)
 
     try {
         l = std::make_shared<RDPListener>(uuid, port, this); // in here go the RDPListener args
-        l->RunServer();
     } catch (std::exception &e) {
         return false;
     }
+
+    std::thread l_thread([l]() {l->RunServer();}); // i think this properly increments and decrements...?
+    l_thread.detach();
 
     listener_map.insert(std::make_pair(uuid, l));
 
@@ -124,7 +126,7 @@ void RDPServerWorker::run()
 
     while (true) {
 
-        zmq::poll(&item, 1, 10); // todo : determine reasonable poll interval
+        zmq::poll(&item, 1, -1); // todo : determine reasonable poll interval
 
         // check if we are terminating
         std::lock_guard<std::mutex> lock(stop_mutex);
