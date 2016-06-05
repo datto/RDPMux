@@ -49,10 +49,20 @@ BOOL StartPeerLoop(freerdp_listener *instance, freerdp_peer *client)
     return TRUE;
 }
 
-RDPListener::RDPListener(std::string uuid, uint16_t port, RDPServerWorker *parent) : shm_buffer(nullptr),
-                                                                                     parent(parent),
-                                                                                     port(port),
-                                                                                     uuid(uuid)
+Glib::ustring RDPListener::introspection_xml =
+        "<node>"
+        "  <interface name='org.RDPMux.RDPListener'>"
+        "    <property type='i' name='Port' access='read' />"
+        "    <property type='i' name='NumConnectedPeers' access='read'/>"
+        "  </interface>"
+        "</node>";
+
+RDPListener::RDPListener(std::string uuid, uint16_t port, RDPServerWorker *parent,
+                         Glib::RefPtr<Gio::DBus::Connection> conn) : shm_buffer(nullptr),
+                                                                     dbus_conn(conn),
+                                                                     parent(parent),
+                                                                     port(port),
+                                                                     uuid(uuid)
 {
     WTSRegisterWtsApiFunctionTable(FreeRDP_InitWtsApi());
     stop = false;
@@ -86,6 +96,27 @@ void RDPListener::RunServer()
 {
     void *connections[32];
     DWORD count = 0;
+
+    // dbus setup
+    const Gio::DBus::InterfaceVTable vtable(sigc::mem_fun(this, &RDPListener::on_method_call),
+                                            sigc::mem_fun(this, &RDPListener::on_property_call));
+
+    Glib::RefPtr<Gio::DBus::NodeInfo> introspection_data;
+    try {
+        introspection_data = Gio::DBus::NodeInfo::create_for_xml(introspection_xml);
+    } catch (const Glib::Error &ex) {
+        LOG(WARNING) << "LISTENER " << this << ": Unable to create introspection data.";
+        return;
+    }
+
+    // create listener name
+    Glib::ustring dbus_name = "/org/RDPMux/RDPListener/";
+    // sanitize uuid before creating dbus object
+    std::string thing = uuid;
+    thing.erase(std::remove(thing.begin(), thing.end(), '-'), thing.end());
+    dbus_name += thing;
+
+    registered_id = dbus_conn->register_object(dbus_name, introspection_data->lookup_interface(), vtable);
 
     if (listener->Open(listener, NULL, port)) {
         VLOG(1) << "LISTENER " << this << ": Listener started successfully.";
@@ -257,4 +288,29 @@ size_t RDPListener::GetWidth()
 size_t RDPListener::GetHeight()
 {
     return this->height;
+}
+
+void RDPListener::on_method_call(const Glib::RefPtr<Gio::DBus::Connection> &,
+                                 const Glib::ustring &,
+                                 const Glib::ustring &, const Glib::ustring &,
+                                 const Glib::ustring &method_name,
+                                 const Glib::VariantContainerBase &parameters,
+                                 const Glib::RefPtr<Gio::DBus::MethodInvocation> &invocation)
+{
+    // nothing here for now
+}
+
+void RDPListener::on_property_call(Glib::VariantBase &property,
+                                   const Glib::RefPtr<Gio::DBus::Connection> &,
+                                   const Glib::ustring &,
+                                   const Glib::ustring &,
+                                   const Glib::ustring &,
+                                   const Glib::ustring &property_name)
+{
+    LOG(INFO) << "Sending property information now!";
+    if (property_name == "Port") {
+        property = Glib::Variant<uint16_t>::create(port);
+    } else if (property_name == "NumConnectedPeers") {
+        property = Glib::Variant<uint32_t>::create(peerlist.size());
+    }
 }

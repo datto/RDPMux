@@ -75,7 +75,7 @@ bool RDPServerWorker::RegisterNewVM(std::string uuid)
     }
 
     try {
-        l = std::make_shared<RDPListener>(uuid, port, this); // in here go the RDPListener args
+        l = std::make_shared<RDPListener>(uuid, port, this, dbus_conn); // in here go the RDPListener args
     } catch (std::exception &e) {
         return false;
     }

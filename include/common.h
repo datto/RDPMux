@@ -20,6 +20,7 @@
 #include <memory>
 #include <cstdbool>
 #include "util/logging.h"
+#include <giomm-2.4/giomm.h>
 
 /**
  * @brief enum of message types.

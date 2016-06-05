@@ -44,8 +44,9 @@ public:
      * @param uuid The UUID of the VM associated with this listener.
      * @param port The port the listener should bind to.
      * @param parent A pointer to the RDPServerWorker for (LIMITED) use // todo: not so limited
+     * @param conn Reference to the process's DBus connection for exposing the Listener object
      */
-    RDPListener(std::string uuid, uint16_t port, RDPServerWorker *parent);
+    RDPListener(std::string uuid, uint16_t port, RDPServerWorker *parent, Glib::RefPtr<Gio::DBus::Connection> conn);
     /**
      * @brief Safely cleans up the freerdp_listener struct and frees all WinPR objects.
      */
@@ -155,11 +156,22 @@ private:
     WSADATA wsadata;
 
     /**
+     * @brief dbus introspection xml
+     */
+    static Glib::ustring introspection_xml;
+
+    /**
+     * dbus connection
+     */
+    Glib::RefPtr<Gio::DBus::Connection> dbus_conn;
+
+    /**
      * @brief Reference to the parent ServerWorker. NO GUARANTEES USE AT OWN RISK. //todo : guarantee
      *
      * @warning NEVER CALL DELETE ON THIS EVER
      */
     RDPServerWorker *parent;
+
     /**
      * @brief Port number to listen on.
      */
@@ -197,6 +209,28 @@ private:
 
     std::mutex stopMutex;
     bool stop;
+    guint registered_id = 0;
+
+    /**
+    * @brief Method called when a DBus method call is invoked.
+    */
+    void on_method_call(const Glib::RefPtr<Gio::DBus::Connection> &,
+                        const Glib::ustring &,
+                        const Glib::ustring &,
+                        const Glib::ustring &,
+                        const Glib::ustring &method_name,
+                        const Glib::VariantContainerBase &parameters,
+                        const Glib::RefPtr<Gio::DBus::MethodInvocation> &invocation);
+
+    /**
+     * @brief Method called when a DBus property is queried.
+     */
+    void on_property_call(Glib::VariantBase& property,
+                          const Glib::RefPtr<Gio::DBus::Connection>&,
+                          const Glib::ustring&,
+                          const Glib::ustring&,
+                          const Glib::ustring&,
+                          const Glib::ustring& property_name);
 };
 
 #endif //QEMU_RDP_RDPLISTENER_H

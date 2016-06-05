@@ -15,7 +15,6 @@
  */
 
 #include "common.h"
-#include <giomm-2.4/giomm.h>
 #include <boost/program_options.hpp>
 #include "RDPServerWorker.h"
 
