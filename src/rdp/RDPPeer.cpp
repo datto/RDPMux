@@ -91,13 +91,13 @@ static void peer_context_free(freerdp_peer *client, PeerContext *context)
         if (context->debug_channel) {
             WTSVirtualChannelClose(context->debug_channel);
         }
-        if (context->audin) {
-            audin_server_context_free(context->audin);
-        }
-
-        if (context->rdpsound) {
-            rdpsnd_server_context_free(context->rdpsound);
-        }
+//        if (context->audin) {
+//            audin_server_context_free(context->audin);
+//        }
+//
+//        if (context->rdpsound) {
+//            rdpsnd_server_context_free(context->rdpsound);
+//        }
 
         WTSCloseServer((HANDLE) context->vcm);
     }
