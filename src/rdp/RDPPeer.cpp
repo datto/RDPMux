@@ -125,7 +125,7 @@ static BOOL peer_activate(freerdp_peer *client)
     auto DesktopWidth = context->peerObj->GetSurfaceWidth();
     auto DesktopHeight = context->peerObj->GetSurfaceHeight();
 
-    rfx_context_reset(context->rfx_context);
+    rfx_context_reset(context->rfx_context, DesktopWidth, DesktopHeight);
     context->activated = TRUE;
 
     client->settings->CompressionLevel = PACKET_COMPR_TYPE_RDP61;
