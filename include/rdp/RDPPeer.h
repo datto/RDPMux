@@ -37,6 +37,7 @@ enum pixel_formats {
     PIXEL_FORMAT_a8r8g8b8,
     PIXEL_FORMAT_r8g8b8,
     PIXEL_FORMAT_b8g8r8,
+    PIXEL_FORMAT_INVALID /* always last! */
 };
 typedef enum pixel_formats PIXEL_FORMAT;
 

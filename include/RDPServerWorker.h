@@ -66,8 +66,9 @@ public:
      *
      * @returns bool Success
      * @param uuid UUID of incoming VM connection.
+     * @param vm_id Unique ID of VM fb.
      */
-    bool RegisterNewVM(std::string uuid);
+    bool RegisterNewVM(std::string uuid, int vm_id);
 
     /**
      * @brief Unregisters VM
@@ -120,10 +121,16 @@ protected:
      * @brief Path to the socket in the filesystem.
      */
     std::string socket_path;
+
     /**
      * @brief Hashmap from UUID to RDPListeners.
      */
     std::map<std::string, std::shared_ptr<RDPListener>> listener_map;
+
+    /**
+     * @brief Hashmap from UUID to current ZeroMQ connection id
+     */
+    std::map<std::string, std::string> connection_map;
 
     /**
      * @brief Set containing all in-use ports. Used to intelligently re-use ports as VMs come and go.

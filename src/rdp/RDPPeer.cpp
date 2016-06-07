@@ -393,8 +393,9 @@ PIXEL_FORMAT RDPPeer::GetPixelFormatForPixmanFormat(pixman_format_code_t f)
         case PIXMAN_b8g8r8:
             return PIXEL_FORMAT_b8g8r8;
         case PIXMAN_r5g6b5:
+        case PIXMAN_x1r5g5b5:
         default:
-            throw new std::invalid_argument("Pixel format not supported");
+            return PIXEL_FORMAT_INVALID;
     }
 }
 
@@ -435,14 +436,9 @@ void RDPPeer::FullDisplayUpdate(pixman_format_code_t f)
     buf_width = listener->GetWidth();
     buf_height = listener->GetHeight();
 
-    try {
-        r = GetPixelFormatForPixmanFormat(f);
-        if (r < 1) {
-            LOG(WARNING) << "What is the point of exceptions if they never get caught?";
-        }
-    } catch (std::invalid_argument &e) {
-        // TODO: notify the outside somehow that we have stuff to implement
-        VLOG(3) << "PEER: Unknown pixel format received.";
+    r = GetPixelFormatForPixmanFormat(f);
+    if (r == PIXEL_FORMAT_INVALID) {
+        LOG(WARNING) << "Invalid pixel format received!";
         return;
     }
 

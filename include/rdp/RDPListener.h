@@ -42,11 +42,13 @@ public:
      * @brief Initializes the listener, given a nanomsg socket to communicate through.
      *
      * @param uuid The UUID of the VM associated with this listener.
+     * @param vm_id The unique ID of the VM's framebuffer.
      * @param port The port the listener should bind to.
      * @param parent A pointer to the RDPServerWorker for (LIMITED) use // todo: not so limited
      * @param conn Reference to the process's DBus connection for exposing the Listener object
      */
-    RDPListener(std::string uuid, uint16_t port, RDPServerWorker *parent, Glib::RefPtr<Gio::DBus::Connection> conn);
+    RDPListener(std::string uuid, int vm_id, uint16_t port, RDPServerWorker *parent,
+                Glib::RefPtr<Gio::DBus::Connection> conn);
     /**
      * @brief Safely cleans up the freerdp_listener struct and frees all WinPR objects.
      */
@@ -181,6 +183,11 @@ private:
      * @brief UUID of the VM associated with the listener.
      */
     std::string uuid;
+
+    /**
+     * @brief Unique ID of VM framebuffer.
+     */
+    int vm_id;
 
     /**
      * @brief Mutex guarding access to the peer list.

@@ -70,7 +70,7 @@ static void on_method_call(const Glib::RefPtr<Gio::DBus::Connection>& conn,
         parameters.get_child(id_variant, 0);
         parameters.get_child(ver_variant, 1);
         parameters.get_child(uuid_variant, 2);
-        int id = id_variant.get();
+        int vm_id = id_variant.get();
         int ver = ver_variant.get();
         std::string uuid = uuid_variant.get();
 
@@ -85,7 +85,7 @@ static void on_method_call(const Glib::RefPtr<Gio::DBus::Connection>& conn,
             return;
         }
 
-        if (!broker->RegisterNewVM(uuid)) {
+        if (!broker->RegisterNewVM(uuid, vm_id)) {
             LOG(WARNING) << "VM Registration failed!";
             invocation->return_value(
                     Glib::VariantContainerBase::create_tuple(
@@ -96,6 +96,7 @@ static void on_method_call(const Glib::RefPtr<Gio::DBus::Connection>& conn,
         }
 
         auto g_res = Glib::ustring(vm["socket-path"].as<std::string>());
+        g_res = "ipc://" + g_res;
         const auto response_variant = Glib::Variant<Glib::ustring>::create(g_res);
         Glib::VariantContainerBase response = Glib::VariantContainerBase::create_tuple(response_variant);
 

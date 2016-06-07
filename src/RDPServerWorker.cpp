@@ -26,6 +26,7 @@ RDPServerWorker::RDPServerWorker(uint16_t port, std::string socket_path)
           socket(context, ZMQ_ROUTER)
 {
     std::string path = "ipc://" + this->socket_path;
+    socket.setsockopt(ZMQ_ROUTER_MANDATORY, 1);
     socket.bind(path);
 }
 
@@ -52,7 +53,7 @@ bool RDPServerWorker::Initialize()
     return initialized;
 }
 
-bool RDPServerWorker::RegisterNewVM(std::string uuid)
+bool RDPServerWorker::RegisterNewVM(std::string uuid, int id)
 {
     std::lock_guard<std::mutex> lock(container_lock); // take lock on both ports and listener_map
     uint16_t port = 0;
@@ -75,7 +76,7 @@ bool RDPServerWorker::RegisterNewVM(std::string uuid)
     }
 
     try {
-        l = std::make_shared<RDPListener>(uuid, port, this, dbus_conn); // in here go the RDPListener args
+        l = std::make_shared<RDPListener>(uuid, id, port, this, dbus_conn); // in here go the RDPListener args
     } catch (std::exception &e) {
         return false;
     }
@@ -98,6 +99,14 @@ void RDPServerWorker::UnregisterVM(std::string uuid, uint16_t port)
 void RDPServerWorker::sendMessage(std::vector<uint16_t> vec, std::string uuid)
 {
     zmq::multipart_t msg;
+
+    try {
+        msg.addstr(connection_map.at(uuid));
+    } catch (std::out_of_range &e) {
+        LOG(ERROR) << "Could not find connection id for UUID " << uuid;
+        return;
+    }
+
     msg.addstr(uuid);
 
     msgpack::sbuffer sbuf;
@@ -120,14 +129,11 @@ void RDPServerWorker::run()
     zmq::pollitem_t item = {
             (void *) socket,
             0,
-            ZMQ_POLLIN | ZMQ_POLLOUT, // can i even do this?
+            ZMQ_POLLIN, // can i even do this?
             0
     };
 
     while (true) {
-
-        zmq::poll(&item, 1, -1); // todo : determine reasonable poll interval
-
         // check if we are terminating
         std::lock_guard<std::mutex> lock(stop_mutex);
         if (stop) {
@@ -136,41 +142,55 @@ void RDPServerWorker::run()
             return;
         }
 
-        if (item.revents & ZMQ_POLLOUT) {
-            // send outgoing messages
-            while (!out_queue.isEmpty()) {
-                QueueItem msg = out_queue.dequeue();
-                auto vec = std::get<0>(msg);
-                sendMessage(vec, std::get<1>(msg));
-            }
+        // send outgoing messages first
+        while (!out_queue.isEmpty()) {
+            QueueItem msg = out_queue.dequeue();
+            auto vec = std::get<0>(msg);
+            sendMessage(vec, std::get<1>(msg));
         }
 
-        if (item.revents & ZMQ_POLLIN) {
-            zmq::multipart_t multi(socket);
+        int ret = zmq::poll(&item, 1, 5); // todo : determine reasonable poll interval
 
-            if (multi.size() != 2) {
-                LOG(WARNING) << "Possibly invalid message received! Size not 2";
+        if (ret > 0) {
+
+            if (item.revents & ZMQ_POLLIN) {
+                zmq::multipart_t multi(socket);
+
+                if (multi.size() != 3) {
+                    LOG(WARNING) << "Possibly invalid message received! Message is: " << multi.str();
+                    continue;
+                }
+
+                VLOG(3) << multi.str();
+
+                std::string id = multi.popstr();
+                std::string uuid = multi.popstr();
+                std::string data = multi.popstr();
+
+                msgpack::unpacked unpacked;
+                msgpack::unpack(&unpacked, data.data(), data.size());
+
+                // deserialize msgpack message and pass to correct listener
+                try {
+                    // so these two lines have to be in this order. if listener_map.at() fails, it'll skip the
+                    // connection_map line, which will silently create and/or update if nothing exists.
+                    auto server = listener_map.at(uuid);
+                    connection_map[uuid] = id;
+
+                    msgpack::object obj = unpacked.get();
+                    std::vector<uint32_t> vec;
+                    obj.convert(&vec);
+                    VLOG(2) << "Processing incoming message " << vec;
+                    server->processIncomingMessage(vec);
+                } catch (std::out_of_range &e) {
+                    LOG(ERROR) << "Listener with UUID " << uuid << " does not exist in map!";
+                } catch (std::exception &e) {
+                    LOG(ERROR) << "Msgpack conversion failed: " << e.what();
+                    LOG(ERROR) << "Offending buffer is " << unpacked.get();
+                }
             }
-
-            std::string uuid = multi.popstr();
-            std::string data = multi.popstr();
-
-            msgpack::unpacked unpacked;
-            msgpack::unpack(&unpacked, data.data(), data.size());
-
-            // deserialize msgpack message and pass to correct listener
-            try {
-                auto server = listener_map.at(uuid);
-                msgpack::object obj = unpacked.get();
-                std::vector<uint32_t> vec;
-                obj.convert(&vec);
-                server->processIncomingMessage(vec);
-            } catch (std::out_of_range &e) {
-                LOG(ERROR) << "Listener with UUID " << uuid << " does not exist in map!";
-            } catch (std::exception &e) {
-                LOG(ERROR) << "Msgpack conversion failed: " << e.what();
-                LOG(ERROR) << "Offending buffer is " << unpacked.get();
-            }
+        } else if (ret == -1) {
+            LOG(WARNING) << "Error polling socket: " << ret;
         }
     }
 }

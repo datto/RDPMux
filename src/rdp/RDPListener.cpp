@@ -57,18 +57,18 @@ Glib::ustring RDPListener::introspection_xml =
         "  </interface>"
         "</node>";
 
-RDPListener::RDPListener(std::string uuid, uint16_t port, RDPServerWorker *parent,
+RDPListener::RDPListener(std::string uuid, int vm_id, uint16_t port, RDPServerWorker *parent,
                          Glib::RefPtr<Gio::DBus::Connection> conn) : shm_buffer(nullptr),
                                                                      dbus_conn(conn),
                                                                      parent(parent),
                                                                      port(port),
-                                                                     uuid(uuid)
+                                                                     uuid(uuid),
+                                                                     vm_id(vm_id)
 {
     WTSRegisterWtsApiFunctionTable(FreeRDP_InitWtsApi());
     stop = false;
 
     listener = freerdp_listener_new();
-    rdp_listener_object = this; // store a reference to the object in thread-local storage for the peer connections
 
     if (!listener) {
         LOG(FATAL) << "LISTENER " << this << ": Listener didn't alloc properly, exiting.";
@@ -96,6 +96,8 @@ void RDPListener::RunServer()
 {
     void *connections[32];
     DWORD count = 0;
+
+    rdp_listener_object = this; // store a reference to the object in thread-local storage for the peer connections
 
     // dbus setup
     const Gio::DBus::InterfaceVTable vtable(sigc::mem_fun(this, &RDPListener::on_method_call),
@@ -164,13 +166,13 @@ void RDPListener::processIncomingMessage(std::vector<uint32_t> rvec)
 {
     // we filter by what type of message it is
     if (rvec[0] == DISPLAY_UPDATE) {
-        VLOG(1) << "WORKER " << this << ": DisplayWorker processing display update event now";
+        VLOG(1) << "LISTENER " << this << ": processing display update event now";
         processDisplayUpdate(rvec);
     } else if (rvec[0] == DISPLAY_SWITCH) {
-        VLOG(2) << "WORKER " << this << ": DisplayWorker processing display switch event now";
+        VLOG(2) << "LISTENER " << this << ": processing display switch event now";
         processDisplaySwitch(rvec);
     } else if (rvec[0] == SHUTDOWN) {
-        VLOG(2) << "WORKER " << this << ": Shutdown event received!";
+        VLOG(2) << "LISTENER " << this << ": Shutdown event received!";
         // TODO: process shutdown events
     } else {
         // what the hell have you sent me
@@ -231,9 +233,12 @@ void RDPListener::processDisplaySwitch(std::vector<uint32_t> msg)
 
     // map in new shmem region if it's the first time
     if (!shm_buffer) {
-        const Glib::ustring path = Glib::ustring::compose("/%1.rdpmux", uuid);
-        shim_fd = shm_open(path.data(), O_RDONLY, S_IRUSR | S_IRGRP | S_IROTH);
-        VLOG(2) << "LISTENER " << this << ": shim_fd is " << shim_fd;
+        std::stringstream ss;
+        ss << "/" << vm_id << ".rdpmux";
+
+        VLOG(2) << "LISTENER " << this << ": Creating new shmem buffer from path " << ss.str();
+        shim_fd = shm_open(ss.str().data(), O_RDONLY, S_IRUSR | S_IRGRP | S_IROTH);
+        VLOG(3) << "LISTENER " << this << ": shim_fd is " << shim_fd;
 
         void *shm_buffer = mmap(NULL, shm_size, PROT_READ, MAP_SHARED, shim_fd, 0);
         if (shm_buffer == MAP_FAILED) {
@@ -307,10 +312,10 @@ void RDPListener::on_property_call(Glib::VariantBase &property,
                                    const Glib::ustring &,
                                    const Glib::ustring &property_name)
 {
-    LOG(INFO) << "Sending property information now!";
     if (property_name == "Port") {
         property = Glib::Variant<uint16_t>::create(port);
     } else if (property_name == "NumConnectedPeers") {
         property = Glib::Variant<uint32_t>::create(peerlist.size());
     }
 }
+
