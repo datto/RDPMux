@@ -166,7 +166,7 @@ void RDPListener::processIncomingMessage(std::vector<uint32_t> rvec)
 {
     // we filter by what type of message it is
     if (rvec[0] == DISPLAY_UPDATE) {
-        VLOG(1) << "LISTENER " << this << ": processing display update event now";
+        //VLOG(1) << "LISTENER " << this << ": processing display update event now";
         processDisplayUpdate(rvec);
     } else if (rvec[0] == DISPLAY_SWITCH) {
         VLOG(2) << "LISTENER " << this << ": processing display switch event now";
@@ -192,17 +192,17 @@ void RDPListener::processDisplayUpdate(std::vector<uint32_t> msg)
              w = msg.at(3),
              h = msg.at(4);
 
-    VLOG(1) << "LISTENER " << this << ": Now taking lock on peerlist to send display update message";
+    //VLOG(1) << "LISTENER " << this << ": Now taking lock on peerlist to send display update message";
     {
         std::lock_guard<std::mutex> lock(peerlist_mutex);
         if (peerlist.size() > 0) {
-            VLOG(2) << std::dec << "LISTENER " << this << ": Now processing display update message [(" << (int) x << ", " << (int) y << ") " << (int) w << ", " << (int) h << "]";
+            //VLOG(2) << std::dec << "LISTENER " << this << ": Now processing display update message [(" << (int) x << ", " << (int) y << ") " << (int) w << ", " << (int) h << "]";
             std::for_each(peerlist.begin(), peerlist.end(), [=](RDPPeer *peer) {
                 peer->PartialDisplayUpdate(x, y, w, h);
             });
         }
     }
-    VLOG(1) << "LISTENER " << this << ": Lock released successfully! Continuing.";
+    //VLOG(1) << "LISTENER " << this << ": Lock released successfully! Continuing.";
 
     // send back display update complete message
     std::vector<uint16_t> vec;
@@ -210,7 +210,7 @@ void RDPListener::processDisplayUpdate(std::vector<uint32_t> msg)
     vec.push_back(1);
 
     parent->sendMessage(vec, uuid);
-    VLOG(1) << "LISTENER " << this << ": Sent ack to QEMU process.";
+    //VLOG(1) << "LISTENER " << this << ": Sent ack to QEMU process.";
 }
 
 pixman_format_code_t RDPListener::GetFormat()
