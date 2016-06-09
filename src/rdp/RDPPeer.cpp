@@ -40,7 +40,7 @@ static BOOL peer_context_new(freerdp_peer *client, PeerContext *context)
 	settings->DrawAllowColorSubsampling = TRUE;
 	settings->DrawAllowDynamicColorFidelity = TRUE;
 
-	settings->CompressionLevel = PACKET_COMPR_TYPE_RDP6;
+	settings->CompressionLevel = PACKET_COMPR_TYPE_RDP61;
 
 	settings->SuppressOutput = TRUE;
 	settings->RefreshRect = TRUE;
@@ -93,9 +93,10 @@ static BOOL peer_post_connect(freerdp_peer *client)
 	UINT32 DesktopHeight;
 	rdpSettings* settings = client->settings;
 	PeerContext* ctx = (PeerContext*) client->context;
+	RDPListener* listener = ctx->peerObj->GetListener();
 
-	DesktopWidth = ctx->peerObj->GetSurfaceWidth();
-	DesktopHeight = ctx->peerObj->GetSurfaceHeight();
+	DesktopWidth = listener->GetWidth();
+	DesktopHeight = listener->GetHeight();
 	ColorDepth = 32;
 
 	if (settings->ColorDepth == 24)
@@ -129,6 +130,9 @@ static BOOL peer_activate(freerdp_peer *client)
 	PeerContext* ctx = (PeerContext*) client->context;
 	rdpMuxEncoder* encoder = ctx->encoder;
 	rdpSettings* settings = client->settings;
+	RDPListener* listener = ctx->peerObj->GetListener();
+
+	fprintf(stderr, "PeerActivate\n");
 
 	if (settings->ClientDir && (strcmp(settings->ClientDir, "librdp") == 0))
 	{
@@ -142,14 +146,15 @@ static BOOL peer_activate(freerdp_peer *client)
 		settings->SurfaceFrameMarkerEnabled = FALSE;
 	}
 
-	auto DesktopWidth = ctx->peerObj->GetSurfaceWidth();
-	auto DesktopHeight = ctx->peerObj->GetSurfaceHeight();
-
-	rdpmux_encoder_reset(encoder, DesktopWidth, DesktopHeight);
+	auto DesktopWidth = listener->GetWidth();
+	auto DesktopHeight = listener->GetHeight();
 
 	ctx->activated = TRUE;
 
 	VLOG(3) << std::dec << "PEER: client->settings->Desktop{Width,Height}: " << DesktopWidth << " " << DesktopHeight;
+
+	ctx->peerObj->FullDisplayUpdate(DesktopWidth, DesktopHeight, ctx->peerObj->GetListener()->GetFormat());
+
 	return TRUE;
 }
 
@@ -174,18 +179,17 @@ static BOOL peer_mouse_event(rdpInput *input, uint16_t flags, uint16_t x, uint16
 	return TRUE;
 }
 
-static BOOL peer_synchronize_event(rdpInput *input, uint32_t flags)
+static BOOL peer_synchronize_event(rdpInput* input, uint32_t flags)
 {
-	VLOG(2) << "PEER: Client sent a synchronize event(0x" << std::hex << flags << ")" << std::dec;
-	PeerContext *ctx = (PeerContext *) input->context;
-	ctx->peerObj->FullDisplayUpdate(ctx->peerObj->GetListener()->GetFormat());
 	return TRUE;
 }
 
 static BOOL peer_refresh_rect(rdpContext *context, uint8_t count, RECTANGLE_16 *areas)
 {
 	PeerContext *ctx = (PeerContext *) context;
-	for (size_t i = 0; i < count; i++) {
+
+	for (size_t i = 0; i < count; i++)
+	{
 		VLOG(2) << "PEER: Client requested to refresh [(" << areas[i].left << ", " << areas[i].top << "), " << areas[i].right << ", " << areas[i].bottom << "]";
 		uint16_t width = areas[i].right - areas[i].left;
 		uint16_t height = areas[i].bottom - areas[i].top;
@@ -195,6 +199,7 @@ static BOOL peer_refresh_rect(rdpContext *context, uint8_t count, RECTANGLE_16 *
 
 		ctx->peerObj->PartialDisplayUpdate(areas[i].left, areas[i].top, areas[i].right - areas[i].left, areas[i].bottom - areas[i].top);
 	}
+
 	return TRUE;
 }
 
@@ -205,6 +210,7 @@ static BOOL peer_suppress_output(rdpContext *context, uint8_t allow, RECTANGLE_1
 	} else {
 		VLOG(2) << "PEER: Client requsted to suppress output";
 	}
+
 	return TRUE;
 }
 
@@ -221,17 +227,17 @@ BOOL peer_surface_frame_acknowledge(rdpContext* context, UINT32 frameId)
 
 size_t RDPPeer::GetSurfaceWidth()
 {
-    return listener->GetWidth();
+	return listener->GetWidth();
 }
 
 size_t RDPPeer::GetSurfaceHeight()
 {
-    return listener->GetHeight();
+	return listener->GetHeight();
 }
 
 RDPListener *RDPPeer::GetListener()
 {
-    return listener;
+	return listener;
 }
 
 RDPPeer::RDPPeer(freerdp_peer *client, RDPListener *listener) : client(client),
@@ -349,7 +355,7 @@ void RDPPeer::ProcessMouseMsg(uint16_t flags, uint16_t x, uint16_t y)
 	vec.push_back(y);
 	vec.push_back(flags);
 
-	VLOG(2) << "PEER: Now sending RDP mouse client message to the QEMU VM";
+	//VLOG(2) << "PEER: Now sending RDP mouse client message to the QEMU VM";
 	listener->processOutgoingMessage(vec);
 }
 
@@ -366,7 +372,7 @@ void RDPPeer::ProcessKeyboardMsg(uint16_t flags, uint16_t keycode)
 
 void RDPPeer::PartialDisplayUpdate(uint32_t x_coord, uint32_t y_coord, uint32_t width, uint32_t height)
 {
-	UpdateRegion(x_coord, y_coord, width, height, FALSE);
+	SendSurfaceUpdate((int) x_coord, (int) y_coord, (int) width, (int) height);
 }
 
 PIXEL_FORMAT RDPPeer::GetPixelFormatForPixmanFormat(pixman_format_code_t f)
@@ -390,32 +396,41 @@ PIXEL_FORMAT RDPPeer::GetPixelFormatForPixmanFormat(pixman_format_code_t f)
 	}
 }
 
-void RDPPeer::CreateSurface(PIXEL_FORMAT r)
+void RDPPeer::CreateSurface(int width, int height, PIXEL_FORMAT r)
 {
 	PeerContext* ctx = (PeerContext*) client->context;
+
+	buf_width = (size_t) width;
+	buf_height = (size_t) height;
+
+	fprintf(stderr, "CreateSurface: %dx%d\n", (int) buf_width, (int) buf_height);
 
 	switch (r)
 	{
 		case PIXEL_FORMAT_r8g8b8a8:
 			VLOG(2) << "PEER: Launching R8G8B8A8 Displaybuffer with dimensions " << buf_width << "x" << buf_height;
+			ctx->sourceBpp = 4;
 			ctx->sourceFormat = PIXEL_FORMAT_XBGR32;
 			ctx->encodeFormat = PIXEL_FORMAT_XBGR32;
 			break;
 
 		case PIXEL_FORMAT_a8r8g8b8:
 			VLOG(2) << "PEER: Launching A8R8G8B8 Displaybuffer with dimensions " << buf_width << "x" << buf_height;
+			ctx->sourceBpp = 4;
 			ctx->sourceFormat = PIXEL_FORMAT_XRGB32;
 			ctx->encodeFormat = PIXEL_FORMAT_XRGB32;
 			break;
 
 		case PIXEL_FORMAT_r8g8b8:
 			VLOG(2) << "PEER: Launching R8G8B8 Displaybuffer with dimensions " << buf_width << "x" << buf_height;
+			ctx->sourceBpp = 3;
 			ctx->sourceFormat = PIXEL_FORMAT_BGR24;
 			ctx->encodeFormat = PIXEL_FORMAT_XRGB32;
 			break;
 
 		case PIXEL_FORMAT_b8g8r8:
 			VLOG(2) << "PEER: Launching R8G8B8 Displaybuffer to deal with BGR data with dimensions " << buf_width << "x" << buf_height;
+			ctx->sourceBpp = 3;
 			ctx->sourceFormat = PIXEL_FORMAT_RGB24;
 			ctx->encodeFormat = PIXEL_FORMAT_XRGB32;
 			break;
@@ -434,30 +449,48 @@ void RDPPeer::CreateSurface(PIXEL_FORMAT r)
 	ctx->surface = rdpmux_surface_new(0, 0, buf_width, buf_height);
 
 	rdpmux_encoder_set_pixel_format(ctx->encoder, ctx->encodeFormat);
+	rdpmux_encoder_reset(ctx->encoder, buf_width, buf_height);
 }
 
-void RDPPeer::FullDisplayUpdate(pixman_format_code_t f)
+void RDPPeer::FullDisplayUpdate(uint32_t displayWidth, uint32_t displayHeight, pixman_format_code_t f)
 {
-	PIXEL_FORMAT r;
-	buf_width = listener->GetWidth();
-	buf_height = listener->GetHeight();
+	PIXEL_FORMAT displayFormat;
+	PeerContext* ctx = (PeerContext*) client->context;
+	rdpSettings* settings = client->settings;
 
-	r = GetPixelFormatForPixmanFormat(f);
+	fprintf(stderr, "FullDisplayUpdate: %dx%d\n", displayWidth, displayHeight);
 
-	if (r == PIXEL_FORMAT_INVALID) {
+	displayFormat = GetPixelFormatForPixmanFormat(f);
+
+	if (displayFormat == PIXEL_FORMAT_INVALID) {
 		LOG(WARNING) << "Invalid pixel format received!";
 		return;
 	}
 
-	VLOG(3) << "PEER " << this << ": Attempting to take lock on surface to recreate";
+	if ((buf_width != displayWidth) || (buf_height != displayHeight) || (buf_format != displayFormat))
 	{
-		std::lock_guard<std::mutex> lock(surface_lock);
-		VLOG(3) << "PEER " << this << ": Locked surface to recreate";
-		CreateSurface(r);
-	}
-	VLOG(3) << "PEER " << this << ": Recreated display surface object; lock released";
+		buf_width = displayWidth;
+		buf_height = displayHeight;
+		buf_format = displayFormat;
 
-	UpdateRegion(0, 0, buf_width, buf_height, TRUE);
+		VLOG(3) << "PEER " << this << ": Attempting to take lock on surface to recreate";
+		{
+			std::lock_guard<std::mutex> lock(surface_lock);
+			VLOG(3) << "PEER " << this << ": Locked surface to recreate";
+			CreateSurface(buf_width, buf_height, displayFormat);
+		}
+		VLOG(3) << "PEER " << this << ": Recreated display surface object; lock released";
+
+		if ((displayWidth != settings->DesktopWidth) || (displayHeight != settings->DesktopHeight))
+		{
+			settings->DesktopWidth = displayWidth;
+			settings->DesktopHeight = displayHeight;
+
+			client->update->DesktopResize(client->update->context);
+
+			ctx->activated = FALSE;
+		}
+	}
 }
 
 int RDPPeer::SendSurfaceBits(int nXSrc, int nYSrc, int nWidth, int nHeight)
@@ -485,8 +518,8 @@ int RDPPeer::SendSurfaceBits(int nXSrc, int nYSrc, int nWidth, int nHeight)
 	encoder = ctx->encoder;
 	surface = ctx->surface;
 
-	freerdp_image_copy(surface->data, ctx->encodeFormat, surface->scanline, 0, 0,
-		buf_width, buf_height, (BYTE*) shm_buffer_region, ctx->sourceFormat, buf_width * 4, 0, 0, NULL);
+	freerdp_image_copy(surface->data, ctx->encodeFormat, surface->scanline, nXSrc, nYSrc,
+		nWidth, nHeight, (BYTE*) shm_buffer_region, ctx->sourceFormat, buf_width * ctx->sourceBpp, nXSrc, nYSrc, NULL);
 
 	pSrcData = surface->data;
 	nSrcStep = surface->scanline;
@@ -626,8 +659,8 @@ int RDPPeer::SendBitmapUpdate(int nXSrc, int nYSrc, int nWidth, int nHeight)
 	encoder = ctx->encoder;
 	surface = ctx->surface;
 
-	freerdp_image_copy(surface->data, ctx->encodeFormat, surface->scanline, 0, 0,
-		buf_width, buf_height, (BYTE*) shm_buffer_region, ctx->sourceFormat, buf_width * 4, 0, 0, NULL);
+	freerdp_image_copy(surface->data, ctx->encodeFormat, surface->scanline, nXSrc, nYSrc,
+		nWidth, nHeight, (BYTE*) shm_buffer_region, ctx->sourceFormat, buf_width * ctx->sourceBpp, nXSrc, nYSrc, NULL);
 
 	maxUpdateSize = settings->MultifragMaxRequestSize;
 
@@ -801,11 +834,10 @@ int RDPPeer::SendBitmapUpdate(int nXSrc, int nYSrc, int nWidth, int nHeight)
 	return 1;
 }
 
-int RDPPeer::SendSurfaceUpdate(void)
+int RDPPeer::SendSurfaceUpdate(int x, int y, int width, int height)
 {
+	int l, r, t, b;
 	int status = -1;
-	int nXSrc, nYSrc;
-	int nWidth, nHeight;
 	rdpContext* context;
 	rdpSettings* settings;
 	PeerContext* ctx = (PeerContext*) client->context;
@@ -813,32 +845,62 @@ int RDPPeer::SendSurfaceUpdate(void)
 	context = (rdpContext*) client->context;
 	settings = context->settings;
 
-	nXSrc = 0;
-	nYSrc = 0;
-	nWidth = buf_width;
-	nHeight = buf_height;
+	if (!ctx->activated)
+		return 1;
+
+	if (!ctx->surface)
+		return 1;
+
+	if ((width * height) < 1)
+		return 1;
+
+	l = x;
+	r = x + width;
+	t = y;
+	b = y + height;
+
+	if (l % 16)
+		l -= (l % 16);
+
+	if (t % 16)
+		t -= (t % 16);
+
+	if (r % 16)
+		r += 16 - (r % 16);
+
+	if (b % 16)
+		b += 16 - (b % 16);
+
+	if (r > (int) buf_width)
+		r = (int) buf_width;
+
+	if (b > (int) buf_height)
+		b = (int) buf_height;
+
+	x = l;
+	y = t;
+	width = r - l;
+	height = b - t;
+
+	if (1)
+	{
+		x = 0;
+		y = 0;
+		width = (int) buf_width;
+		height = (int) buf_height;
+	}
+
+	//fprintf(stderr, "SendSurfaceUpdate: x: %d y: %d width: %d height: %d\n", x, y, width, height);
 
 	if (settings->RemoteFxCodec || settings->NSCodec)
 	{
-		status = SendSurfaceBits(nXSrc, nYSrc, nWidth, nHeight);
+		status = SendSurfaceBits(x, y, width, height);
 	}
 	else
 	{
-		status = SendBitmapUpdate(nXSrc, nYSrc, nWidth, nHeight);
+		status = SendBitmapUpdate(x, y, width, height);
 	}
 
 	return status;
 }
 
-void RDPPeer::UpdateRegion(uint32_t x, uint32_t y, uint32_t w, uint32_t h, BOOL fullRefresh)
-{
-	PeerContext* ctx = (PeerContext*) client->context;
-
-	if (!ctx->activated)
-		return;
-
-	if (!ctx->surface)
-		return;
-
-	SendSurfaceUpdate();
-}

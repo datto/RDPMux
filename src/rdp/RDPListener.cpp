@@ -223,9 +223,9 @@ void RDPListener::processDisplaySwitch(std::vector<uint32_t> msg)
     // note that under current calling conditions, this will run in the thread of the RDPServerWorker associated with
     // the VM.
     VLOG(2) << "LISTENER " << this << ": Now processing display switch event";
-    uint32_t w = msg.at(2),
-             h = msg.at(3);
-    pixman_format_code_t format = (pixman_format_code_t) msg.at(1);
+    uint32_t displayWidth = msg.at(2);
+    uint32_t displayHeight = msg.at(3);
+    pixman_format_code_t displayFormat = (pixman_format_code_t) msg.at(1);
     int shim_fd;
     size_t shm_size = 4096 * 2048 * sizeof(uint32_t);
 
@@ -250,9 +250,9 @@ void RDPListener::processDisplaySwitch(std::vector<uint32_t> msg)
         this->shm_buffer = shm_buffer;
     }
 
-    this->width = w;
-    this->height = h;
-    this->format = format;
+    this->width = displayWidth;
+    this->height = displayHeight;
+    this->format = displayFormat;
 
     // send full display update to all peers, but only if there are peers connected
     {
@@ -260,7 +260,7 @@ void RDPListener::processDisplaySwitch(std::vector<uint32_t> msg)
         if (peerlist.size() > 0) {
             std::for_each(peerlist.begin(), peerlist.end(), [=](RDPPeer *peer) {
                 VLOG(3) << "LISTENER " << this << ": Sending peer update region request now";
-                peer->FullDisplayUpdate(format);
+                peer->FullDisplayUpdate(displayWidth, displayHeight, displayFormat);
             });
         }
     }

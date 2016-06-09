@@ -112,7 +112,7 @@ public:
      *
      * @param f The display buffer pixel format.
      */
-    void FullDisplayUpdate(pixman_format_code_t f);
+    void FullDisplayUpdate(uint32_t displayWidth, uint32_t displayHeight, pixman_format_code_t f);
 
     /**
      * @brief Gets the width of the surface.
@@ -141,16 +141,16 @@ private:
     RDPListener* listener;
     size_t buf_width;
     size_t buf_height;
+    PIXEL_FORMAT buf_format;
 
     std::mutex surface_lock;
 
     int SendSurfaceBits(int nXSrc, int nYSrc, int nWidth, int nHeight);
     int SendBitmapUpdate(int nXSrc, int nYSrc, int nWidth, int nHeight);
-    int SendSurfaceUpdate(void);
+    int SendSurfaceUpdate(int x, int y, int width, int height);
 
-    void UpdateRegion(uint32_t x, uint32_t y, uint32_t w, uint32_t h, BOOL fullRefresh);
     PIXEL_FORMAT GetPixelFormatForPixmanFormat(pixman_format_code_t f);
-    void CreateSurface(PIXEL_FORMAT r);
+    void CreateSurface(int width, int height, PIXEL_FORMAT r);
 };
 
 /**
@@ -161,6 +161,7 @@ struct peer_context {
     rdpContext _p;
     RDPPeer *peerObj;
 
+    UINT32 sourceBpp;
     UINT32 sourceFormat;
     UINT32 encodeFormat;
     rdpMuxEncoder* encoder;
