@@ -23,12 +23,12 @@ RDPServerWorker::RDPServerWorker(uint16_t port, std::string socket_path)
           initialized(false),
           socket_path(socket_path),
           context(1), // todo: explore the possibility of needing more than one thread
-          socket(context, ZMQ_ROUTER)
+          zsocket(context, ZMQ_ROUTER)
 {
 //    std::string path = "ipc://" + this->socket_path;
     std::string path = "tcp://0.0.0.0:4599";
-    socket.setsockopt(ZMQ_ROUTER_MANDATORY, 1);
-    socket.bind(path);
+    zsocket.setsockopt(ZMQ_ROUTER_MANDATORY, 1);
+    zsocket.bind(path);
 }
 
 RDPServerWorker::~RDPServerWorker()
@@ -64,7 +64,25 @@ bool RDPServerWorker::RegisterNewVM(std::string uuid, int id)
     // stdlib already uses binary search, so if this gets slow for you, consider not running as many VMs on the same
     // computer
     for (uint16_t i = starting_port; i < 65535; i++) {
-        if (ports.find(i + 1) == ports.end()) {
+        if (ports.count(i) == 0) {
+            // check if port is available to be bound
+            struct addrinfo hints, *res;
+            int sockfd;
+
+            memset(&hints, 0, sizeof(hints));
+            hints.ai_family = AF_INET; // IPv4
+            hints.ai_socktype = SOCK_STREAM; // TCP stream socket
+            getaddrinfo("0.0.0.0", std::to_string(i).c_str(), &hints, &res); // check for usage across all interfaces
+
+            sockfd = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
+
+            // try binding
+            int ret = bind(sockfd, res->ai_addr, res->ai_addrlen);
+            free(res); // free the linked list of results no matter what
+            if (ret < 0) {
+                continue;
+            }
+            close(sockfd);
             port = i;
             ports.insert(i);
             break;
@@ -115,7 +133,7 @@ void RDPServerWorker::sendMessage(std::vector<uint16_t> vec, std::string uuid)
 
     msg.addmem(sbuf.data(), sbuf.size());
 
-    if (!msg.send(socket) || !msg.empty()) {
+    if (!msg.send(zsocket) || !msg.empty()) {
         LOG(ERROR) << "Unable to send message " << vec;
     }
 }
@@ -128,7 +146,7 @@ void RDPServerWorker::queueOutgoingMessage(QueueItem item)
 void RDPServerWorker::run()
 {
     zmq::pollitem_t item = {
-            (void *) socket,
+            (void *) zsocket,
             0,
             ZMQ_POLLIN, // can i even do this?
             0
@@ -155,7 +173,7 @@ void RDPServerWorker::run()
         if (ret > 0) {
 
             if (item.revents & ZMQ_POLLIN) {
-                zmq::multipart_t multi(socket);
+                zmq::multipart_t multi(zsocket);
 
                 if (multi.size() != 3) {
                     LOG(WARNING) << "Possibly invalid message received! Message is: " << multi.str();

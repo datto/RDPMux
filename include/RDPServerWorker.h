@@ -156,7 +156,7 @@ protected:
     /**
      * @brief ZeroMQ socket.
      */
-    zmq::socket_t socket;
+    zmq::socket_t zsocket;
 
     /**
      * @brief Main loop function that receives messages and processes them for dispatch to the RDP listener.
