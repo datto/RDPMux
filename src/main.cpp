@@ -78,7 +78,7 @@ static void on_method_call(const Glib::RefPtr<Gio::DBus::Connection>& conn,
         if (ver != 2) {
             invocation->return_value(
                     Glib::VariantContainerBase::create_tuple(
-                            Glib::Variant<std::string>::create("")
+                            Glib::Variant<Glib::ustring>::create("")
                     )
             );
             LOG(INFO) << "Client tried to connect using unsupported protocol version, ignoring";
@@ -89,15 +89,13 @@ static void on_method_call(const Glib::RefPtr<Gio::DBus::Connection>& conn,
             LOG(WARNING) << "VM Registration failed!";
             invocation->return_value(
                     Glib::VariantContainerBase::create_tuple(
-                            Glib::Variant<std::string>::create("")
+                            Glib::Variant<Glib::ustring>::create("")
                     )
             );
             return;
         }
 
-//        auto g_res = Glib::ustring(vm["socket-path"].as<std::string>());
-//        g_res = "ipc://" + g_res;
-        Glib::ustring g_res = "tcp://0.0.0.0:4599";
+        Glib::ustring g_res = "ipc://@/tmp/rdpmux";
         const auto response_variant = Glib::Variant<Glib::ustring>::create(g_res);
         Glib::VariantContainerBase response = Glib::VariantContainerBase::create_tuple(response_variant);
 
@@ -178,11 +176,6 @@ void process_options(const int argc, const char *argv[])
                         "Port to begin spawning listeners on."
                 )
                 (
-                        "socket-path,s",
-                        po::value<std::string>()->default_value(tmp_dir_path),
-                        "VM communication socket path. Must be writable"
-                )
-                (
                         "certificate-dir,d",
                         po::value<std::string>()->required(),
                         "Directory where the RDP certificates are stored."
@@ -198,9 +191,7 @@ void process_options(const int argc, const char *argv[])
 
         po::notify(vm);
         std::string test_cert = vm["certificate-dir"].as<std::string>();
-        std::string test_path = vm["socket-path"].as<std::string>();
         LOG(INFO) << "Certificate path is " << test_cert;
-        LOG(INFO) << "Socket path is " << test_path;
     } catch (const std::exception &ex) {
         LOG(WARNING) << ex.what();
         exit(1);
@@ -228,36 +219,17 @@ int main(int argc, const char* argv[])
     }
 
     auto port = vm["port"].as<uint16_t>();
-    auto socket_path = vm["socket-path"].as<std::string>();
 
-    if (socket_path.at(0) != '/') {
-        LOG(FATAL) << "Absolute paths only, please!";
-        return 1;
-    }
-
-    // create directory if it doesn't exist
-    auto socket_dir = Glib::path_get_dirname(socket_path);
-    if (opendir(socket_dir.c_str()) == NULL) {
-        if (errno == ENOTDIR || errno == ENOENT) {
-            // create directory with 777 permissions
-            if (mkdir(socket_dir.c_str(), S_IRWXU | S_IRWXG | S_IRWXO) < 0) {
-                LOG(WARNING) << "Error creating socket directory " << socket_dir << " : " << strerror(errno);
-            }
-        } else {
-            LOG(WARNING) << "Error checking socket directory " << socket_dir << " : " << strerror(errno);
-        }
-    }
-
-    // final check to make sure port is within bounds
+    // final check to make sure starting port is within bounds
     if (port > 0 && port < 65535) {
+        if (port < 1024) {
+            LOG(WARNING) << "Port number is low (below 1024), may conflict with other system services!";
+        }
         try {
-            broker = make_unique<RDPServerWorker>(port, socket_path); // create broker
+            broker = make_unique<RDPServerWorker>(port); // create broker
         } catch (std::exception &e) {
             LOG(FATAL) << "Error initializing socket: " << e.what();
             return 1;
-        }
-        if (port < 1024) {
-            LOG(WARNING) << "Port number is low (below 1024), may conflict with other system services!";
         }
     } else {
         LOG(FATAL) << "Invalid port number " << port;

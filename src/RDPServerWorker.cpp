@@ -18,15 +18,13 @@
 #include <msgpack/unpack.hpp>
 #include "RDPServerWorker.h"
 
-RDPServerWorker::RDPServerWorker(uint16_t port, std::string socket_path)
+RDPServerWorker::RDPServerWorker(uint16_t port)
         : starting_port(port),
           initialized(false),
-          socket_path(socket_path),
           context(1), // todo: explore the possibility of needing more than one thread
           zsocket(context, ZMQ_ROUTER)
 {
-//    std::string path = "ipc://" + this->socket_path;
-    std::string path = "tcp://0.0.0.0:4599";
+    std::string path = "ipc://@/tmp/rdpmux";
     zsocket.setsockopt(ZMQ_ROUTER_MANDATORY, 1);
     zsocket.bind(path);
 }

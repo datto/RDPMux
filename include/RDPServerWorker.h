@@ -43,7 +43,7 @@ public:
      * @param port The starting port for new RDP listener connections
      * @param socket_path File path to the ZeroMQ socket.
      */
-    RDPServerWorker(uint16_t port, std::string socket_path);
+    RDPServerWorker(uint16_t port);
 
     /**
      * @brief Initializes the run loop. After this function returns successfully, the ServerWorker is ready to process
@@ -105,22 +105,21 @@ protected:
      * @brief starting port for new connections
      */
     uint16_t starting_port;
+
     /**
      * @brief Lock guarding stop.
      */
     std::mutex stop_mutex;
+
     /**
      * @brief Variable set to indicate when the RDPServerWorker is stopping.
      */
     bool stop;
+
     /**
      * @brief Whether the ServerWorker is initialized.
      */
     bool initialized;
-    /**
-     * @brief Path to the socket in the filesystem.
-     */
-    std::string socket_path;
 
     /**
      * @brief Hashmap from UUID to RDPListeners.
@@ -141,11 +140,15 @@ protected:
      * @brief mutex on ports so that concurrent accesses are okay.
      */
     std::mutex container_lock;
+
     /**
     * @brief Reference to the process's DBus connection for registering listeners.
     */
     Glib::RefPtr<Gio::DBus::Connection> dbus_conn;
 
+    /**
+     * @brief Queue containing outbound messages.
+     */
     MessageQueue out_queue;
 
     /**
