@@ -23,7 +23,7 @@ namespace po = boost::program_options;
 extern po::variables_map vm;
 
 /* Context activation functions */
-static BOOL peer_context_new(freerdp_peer *client, PeerContext *context)
+static BOOL peer_context_new(freerdp_peer* client, PeerContext* ctx)
 {
 	rdpSettings* settings = client->settings;
 
@@ -51,16 +51,18 @@ static BOOL peer_context_new(freerdp_peer *client, PeerContext *context)
 
 	settings->EncryptionLevel = ENCRYPTION_LEVEL_CLIENT_COMPATIBLE;
 
-	context->vcm = WTSOpenServerA((LPSTR) client->context);
+	ctx->vcm = WTSOpenServerA((LPSTR) client->context);
 
-	if (!context->vcm || context->vcm == INVALID_HANDLE_VALUE) {
+	if (!ctx->vcm || ctx->vcm == INVALID_HANDLE_VALUE) {
 		return FALSE;
 	}
 
-	context->encoder = rdpmux_encoder_new(settings);
+	ctx->encoder = rdpmux_encoder_new(settings);
 
-	if (!context->encoder)
+	if (!ctx->encoder)
 		return FALSE;
+
+	region16_init(&ctx->invalidRegion);
 
 	return TRUE;
 }
@@ -71,6 +73,8 @@ static void peer_context_free(freerdp_peer *client, PeerContext *ctx)
 		return;
 
 	rdpmux_encoder_free(ctx->encoder);
+
+	region16_uninit(&ctx->invalidRegion);
 
 	WTSCloseServer((HANDLE) ctx->vcm);
 
@@ -184,20 +188,21 @@ static BOOL peer_synchronize_event(rdpInput* input, uint32_t flags)
 	return TRUE;
 }
 
-static BOOL peer_refresh_rect(rdpContext *context, uint8_t count, RECTANGLE_16 *areas)
+static BOOL peer_refresh_rect(rdpContext* context, uint8_t count, RECTANGLE_16* areas)
 {
-	PeerContext *ctx = (PeerContext *) context;
+	RECTANGLE_16 invalidRect;
+	PeerContext* ctx = (PeerContext*) context;
 
 	for (size_t i = 0; i < count; i++)
 	{
 		VLOG(2) << "PEER: Client requested to refresh [(" << areas[i].left << ", " << areas[i].top << "), " << areas[i].right << ", " << areas[i].bottom << "]";
-		uint16_t width = areas[i].right - areas[i].left;
-		uint16_t height = areas[i].bottom - areas[i].top;
 
-		if (width > ctx->peerObj->GetSurfaceWidth() || height > ctx->peerObj->GetSurfaceHeight())
-			return TRUE;
+		invalidRect.left = areas[i].left;
+		invalidRect.top = areas[i].top;
+		invalidRect.right = areas[i].right;
+		invalidRect.bottom = areas[i].bottom;
 
-		ctx->peerObj->PartialDisplayUpdate(areas[i].left, areas[i].top, areas[i].right - areas[i].left, areas[i].bottom - areas[i].top);
+		region16_union_rect(&ctx->invalidRegion, &ctx->invalidRegion, &invalidRect);
 	}
 
 	return TRUE;
@@ -454,6 +459,7 @@ void RDPPeer::CreateSurface(int width, int height, PIXEL_FORMAT r)
 
 void RDPPeer::FullDisplayUpdate(uint32_t displayWidth, uint32_t displayHeight, pixman_format_code_t f)
 {
+	RECTANGLE_16 invalidRect;
 	PIXEL_FORMAT displayFormat;
 	PeerContext* ctx = (PeerContext*) client->context;
 	rdpSettings* settings = client->settings;
@@ -467,7 +473,7 @@ void RDPPeer::FullDisplayUpdate(uint32_t displayWidth, uint32_t displayHeight, p
 		return;
 	}
 
-	if ((buf_width != displayWidth) || (buf_height != displayHeight) || (buf_format != displayFormat))
+	if (!ctx->surface || (displayWidth != settings->DesktopWidth) || (displayHeight != settings->DesktopHeight))
 	{
 		buf_width = displayWidth;
 		buf_height = displayHeight;
@@ -491,6 +497,13 @@ void RDPPeer::FullDisplayUpdate(uint32_t displayWidth, uint32_t displayHeight, p
 			ctx->activated = FALSE;
 		}
 	}
+
+	invalidRect.left = 0;
+	invalidRect.top = 0;
+	invalidRect.right = displayWidth;
+	invalidRect.bottom = displayHeight;
+
+	region16_union_rect(&ctx->invalidRegion, &ctx->invalidRegion, &invalidRect);
 }
 
 int RDPPeer::SendSurfaceBits(int nXSrc, int nYSrc, int nWidth, int nHeight)
@@ -840,10 +853,24 @@ int RDPPeer::SendSurfaceUpdate(int x, int y, int width, int height)
 	int status = -1;
 	rdpContext* context;
 	rdpSettings* settings;
+	rdpMuxSurface* surface;
+	RECTANGLE_16 surfaceRect;
+	RECTANGLE_16 invalidRect;
+	const RECTANGLE_16* extents;
 	PeerContext* ctx = (PeerContext*) client->context;
+
+	fprintf(stderr, "SendSurfaceUpdate: x: %d y: %d width: %d height: %d activated: %d surface: %p\n",
+			x, y, width, height, ctx->activated, ctx->surface);
 
 	context = (rdpContext*) client->context;
 	settings = context->settings;
+
+	invalidRect.left = x;
+	invalidRect.top = y;
+	invalidRect.right = x + width;
+	invalidRect.bottom = y + height;
+
+	region16_union_rect(&ctx->invalidRegion, &ctx->invalidRegion, &invalidRect);
 
 	if (!ctx->activated)
 		return 1;
@@ -851,13 +878,26 @@ int RDPPeer::SendSurfaceUpdate(int x, int y, int width, int height)
 	if (!ctx->surface)
 		return 1;
 
-	if ((width * height) < 1)
+	surface = ctx->surface;
+
+	surfaceRect.left = 0;
+	surfaceRect.top = 0;
+	surfaceRect.right = surface->width;
+	surfaceRect.bottom = surface->height;
+
+	region16_intersect_rect(&ctx->invalidRegion, &ctx->invalidRegion, &surfaceRect);
+
+	if (region16_is_empty(&ctx->invalidRegion))
 		return 1;
 
-	l = x;
-	r = x + width;
-	t = y;
-	b = y + height;
+	extents = region16_extents(&ctx->invalidRegion);
+
+	l = extents->left;
+	r = extents->right;
+	t = extents->top;
+	b = extents->bottom;
+
+	region16_clear(&ctx->invalidRegion);
 
 	if (l % 16)
 		l -= (l % 16);

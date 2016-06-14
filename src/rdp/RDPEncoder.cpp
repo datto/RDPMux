@@ -381,6 +381,114 @@ void rdpmux_encoder_set_pixel_format(rdpMuxEncoder* encoder, UINT32 format)
 	encoder->format = format;
 }
 
+int rdpmux_encoder_compare(rdpMuxEncoder* encoder, BYTE* pData1, int nStep1,
+		int nWidth, int nHeight, BYTE* pData2, int nStep2, RECTANGLE_16* rect)
+{
+	BOOL equal;
+	BOOL allEqual;
+	int tw, th;
+	int tx, ty, k;
+	int nrow, ncol;
+	int l, t, r, b;
+	int left, top;
+	int right, bottom;
+	BYTE *p1, *p2;
+	BOOL rows[1024];
+
+	allEqual = TRUE;
+	FillMemory(rows, sizeof(rows), 0xFF);
+
+	nrow = (nHeight + 15) / 16;
+	ncol = (nWidth + 15) / 16;
+
+	l = ncol + 1;
+	r = -1;
+
+	t = nrow + 1;
+	b = -1;
+
+	for (ty = 0; ty < nrow; ty++)
+	{
+		th = ((ty + 1) == nrow) ? (nHeight % 16) : 16;
+
+		if (!th)
+			th = 16;
+
+		for (tx = 0; tx < ncol; tx++)
+		{
+			equal = TRUE;
+
+			tw = ((tx + 1) == ncol) ? (nWidth % 16) : 16;
+
+			if (!tw)
+				tw = 16;
+
+			p1 = &pData1[(ty * 16 * nStep1) + (tx * 16 * 4)];
+			p2 = &pData2[(ty * 16 * nStep2) + (tx * 16 * 4)];
+
+			for (k = 0; k < th; k++)
+			{
+				if (memcmp(p1, p2, tw * 4) != 0)
+				{
+					equal = FALSE;
+					break;
+				}
+
+				p1 += nStep1;
+				p2 += nStep2;
+			}
+
+			if (!equal)
+			{
+				rows[ty] = FALSE;
+
+				if (l > tx)
+					l = tx;
+
+				if (r < tx)
+					r = tx;
+			}
+		}
+
+		if (!rows[ty])
+		{
+			allEqual = FALSE;
+
+			if (t > ty)
+				t = ty;
+
+			if (b < ty)
+				b = ty;
+		}
+	}
+
+	if (allEqual)
+	{
+		rect->left = rect->top = 0;
+		rect->right = rect->bottom = 0;
+		return 0;
+	}
+
+	left = l * 16;
+	top = t * 16;
+	right = (r + 1) * 16;
+	bottom = (b + 1) * 16;
+
+	if (right > nWidth)
+		right = nWidth;
+
+	if (bottom > nHeight)
+		bottom = nHeight;
+
+	rect->left = left;
+	rect->top = top;
+	rect->right = right;
+	rect->bottom = bottom;
+
+	return 1;
+}
+
+
 rdpMuxEncoder* rdpmux_encoder_new(rdpSettings* settings)
 {
 	rdpMuxEncoder* encoder;

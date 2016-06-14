@@ -50,6 +50,9 @@ UINT32 rdpmux_encoder_create_frame_id(rdpMuxEncoder* encoder);
 
 void rdpmux_encoder_set_pixel_format(rdpMuxEncoder* encoder, UINT32 format);
 
+int rdpmux_encoder_compare(rdpMuxEncoder* encoder, BYTE* pData1, int nStep1,
+		int nWidth, int nHeight, BYTE* pData2, int nStep2, RECTANGLE_16* rect);
+
 rdpMuxEncoder* rdpmux_encoder_new(rdpSettings* settings);
 void rdpmux_encoder_free(rdpMuxEncoder* encoder);
 

@@ -166,6 +166,7 @@ struct peer_context {
     UINT32 encodeFormat;
     rdpMuxEncoder* encoder;
     rdpMuxSurface* surface;
+    REGION16 invalidRegion;
     BOOL activated;
     HANDLE event;
     HANDLE stopEvent;
