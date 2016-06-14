@@ -164,9 +164,13 @@ struct peer_context {
     UINT32 sourceBpp;
     UINT32 sourceFormat;
     UINT32 encodeFormat;
+    UINT32 frameRate;
+    UINT32 minFrameRate;
+    UINT32 maxFrameRate;
     rdpMuxEncoder* encoder;
     rdpMuxSurface* surface;
     REGION16 invalidRegion;
+    CRITICAL_SECTION lock;
     BOOL activated;
     HANDLE event;
     HANDLE stopEvent;

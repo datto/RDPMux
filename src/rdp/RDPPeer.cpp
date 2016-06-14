@@ -19,6 +19,9 @@
 #include "rdp/RDPPeer.h"
 #include "rdp/RDPListener.h"
 
+#include <winpr/crt.h>
+#include <winpr/sysinfo.h>
+
 namespace po = boost::program_options;
 extern po::variables_map vm;
 
@@ -64,10 +67,18 @@ static BOOL peer_context_new(freerdp_peer* client, PeerContext* ctx)
 
 	region16_init(&ctx->invalidRegion);
 
+	InitializeCriticalSectionAndSpinCount(&(ctx->lock), 4000);
+
+	ctx->stopEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
+
+	ctx->minFrameRate = 1;
+	ctx->maxFrameRate = 30;
+	ctx->frameRate = ctx->maxFrameRate;
+
 	return TRUE;
 }
 
-static void peer_context_free(freerdp_peer *client, PeerContext *ctx)
+static void peer_context_free(freerdp_peer* client, PeerContext* ctx)
 {
 	if (!ctx)
 		return;
@@ -83,6 +94,10 @@ static void peer_context_free(freerdp_peer *client, PeerContext *ctx)
 		rdpmux_surface_free(ctx->surface);
 		ctx->surface = NULL;
 	}
+
+	DeleteCriticalSection(&(ctx->lock));
+
+	CloseHandle(ctx->stopEvent);
 }
 
 static BOOL peer_capabilities(freerdp_peer *client)
@@ -166,18 +181,19 @@ static BOOL peer_activate(freerdp_peer *client)
 
 static BOOL peer_keyboard_event(rdpInput *input, uint16_t flags, uint16_t code)
 {
-	PeerContext *context = (PeerContext *) input->context->peer->context;
+	PeerContext* context = (PeerContext*) input->context->peer->context;
 
-	RDPPeer *peer = context->peerObj;
+	RDPPeer* peer = context->peerObj;
 	peer->ProcessKeyboardMsg(flags, code);
+
 	return TRUE;
 }
 
 static BOOL peer_mouse_event(rdpInput *input, uint16_t flags, uint16_t x, uint16_t y)
 {
-	PeerContext *context = (PeerContext *) input->context->peer->context;
+	PeerContext* context = (PeerContext *) input->context->peer->context;
 
-	RDPPeer *peer = context->peerObj;
+	RDPPeer* peer = context->peerObj;
 	peer->ProcessMouseMsg(flags, x, y);
 
 	return TRUE;
@@ -202,7 +218,11 @@ static BOOL peer_refresh_rect(rdpContext* context, uint8_t count, RECTANGLE_16* 
 		invalidRect.right = areas[i].right;
 		invalidRect.bottom = areas[i].bottom;
 
+		EnterCriticalSection(&ctx->lock);
+
 		region16_union_rect(&ctx->invalidRegion, &ctx->invalidRegion, &invalidRect);
+
+		LeaveCriticalSection(&ctx->lock);
 	}
 
 	return TRUE;
@@ -213,7 +233,7 @@ static BOOL peer_suppress_output(rdpContext *context, uint8_t allow, RECTANGLE_1
 	if (allow > 0) {
 		VLOG(2) << "PEER: Client requested to restore output";
 	} else {
-		VLOG(2) << "PEER: Client requsted to suppress output";
+		VLOG(2) << "PEER: Client requested to suppress output";
 	}
 
 	return TRUE;
@@ -297,36 +317,74 @@ RDPPeer::~RDPPeer()
     LOG(INFO) << "PEER " << this << ": DESTRUCTING ACHTUNG WARNING WARNING WARNING WARNING WARNING WARNING WARNING WARNING WARNING WARNING WARNING WARNING WARNING WARNING WARNING WARNING WARNING WARNING";
 }
 
-void RDPPeer::RunThread(freerdp_peer *client)
+void RDPPeer::RunThread(freerdp_peer* client)
 {
-	HANDLE handles[32];
-	DWORD count, status;
-	PeerContext *context = (PeerContext *) client->context;
+	int status;
+	DWORD nCount;
+	UINT64 currTime;
+	DWORD dwTimeout;
+	DWORD dwInterval;
+	UINT64 frameTime;
+	DWORD waitStatus;
+	HANDLE events[64];
+	PeerContext* ctx = (PeerContext*) client->context;
 
 	this->listener->registerPeer(this);
 
+	dwInterval = 1000 / ctx->frameRate;
+	frameTime = GetTickCount64() + dwInterval;
+
 	while (1)
 	{
-		count = 0;
-		handles[count++] = client->GetEventHandle(client);
-		handles[count++] = WTSVirtualChannelManagerGetEventHandle(context->vcm);
+		nCount = 0;
+		events[nCount++] = ctx->stopEvent;
+		events[nCount++] = client->GetEventHandle(client);
+		events[nCount++] = WTSVirtualChannelManagerGetEventHandle(ctx->vcm);
 
-		status = WaitForMultipleObjects(count, handles, FALSE, INFINITE);
+		currTime = GetTickCount64();
+		dwTimeout = (DWORD) ((currTime > frameTime) ? 1 : frameTime - currTime);
 
-		if (status == WAIT_FAILED) {
+		dwTimeout = INFINITE;
+		waitStatus = WaitForMultipleObjects(nCount, events, FALSE, dwTimeout);
+
+		if (waitStatus == WAIT_FAILED) {
 			VLOG(1) << "PEER: Wait failed.";
 			break;
 		}
+
+		if (WaitForSingleObject(ctx->stopEvent, 0) == WAIT_OBJECT_0)
+			break;
 
 		if (client->CheckFileDescriptor(client) != TRUE) {
 			VLOG(1) << "PEER: Client closed connection.";
 			break;
 		}
 
-		if (WTSVirtualChannelManagerCheckFileDescriptor(context->vcm) != TRUE) {
+		if (WTSVirtualChannelManagerCheckFileDescriptor(ctx->vcm) != TRUE) {
 			VLOG(1) << "PEER: Virtual channel connection closed.";
 			break;
 		}
+
+#if 0
+		if (GetTickCount64() >= frameTime)
+		{
+			if (ctx->activated)
+			{
+				/* send update here */
+
+				status = SendSurfaceUpdate(0, 0, 0, 0);
+
+				if (status <= 0)
+				{
+					SetEvent(ctx->stopEvent);
+					break;
+				}
+			}
+
+			dwInterval = 1000 / ctx->frameRate;
+			frameTime += dwInterval;
+		}
+#endif
 	}
 
 	this->listener->unregisterPeer(this);
@@ -377,7 +435,26 @@ void RDPPeer::ProcessKeyboardMsg(uint16_t flags, uint16_t keycode)
 
 void RDPPeer::PartialDisplayUpdate(uint32_t x_coord, uint32_t y_coord, uint32_t width, uint32_t height)
 {
-	SendSurfaceUpdate((int) x_coord, (int) y_coord, (int) width, (int) height);
+	if (0)
+	{
+		RECTANGLE_16 invalidRect;
+		PeerContext* ctx = (PeerContext*) client->context;
+
+		invalidRect.left = (UINT16) x_coord;
+		invalidRect.top = (UINT16) y_coord;
+		invalidRect.right = (UINT16) (x_coord + width);
+		invalidRect.bottom = (UINT16) (y_coord + height);
+
+		EnterCriticalSection(&ctx->lock);
+
+		region16_union_rect(&ctx->invalidRegion, &ctx->invalidRegion, &invalidRect);
+
+		LeaveCriticalSection(&ctx->lock);
+	}
+	else
+	{
+		SendSurfaceUpdate((int) x_coord, (int) y_coord, (int) width, (int) height);
+	}
 }
 
 PIXEL_FORMAT RDPPeer::GetPixelFormatForPixmanFormat(pixman_format_code_t f)
@@ -503,7 +580,11 @@ void RDPPeer::FullDisplayUpdate(uint32_t displayWidth, uint32_t displayHeight, p
 	invalidRect.right = displayWidth;
 	invalidRect.bottom = displayHeight;
 
+	EnterCriticalSection(&ctx->lock);
+
 	region16_union_rect(&ctx->invalidRegion, &ctx->invalidRegion, &invalidRect);
+
+	LeaveCriticalSection(&ctx->lock);
 }
 
 int RDPPeer::SendSurfaceBits(int nXSrc, int nYSrc, int nWidth, int nHeight)
@@ -859,36 +940,50 @@ int RDPPeer::SendSurfaceUpdate(int x, int y, int width, int height)
 	const RECTANGLE_16* extents;
 	PeerContext* ctx = (PeerContext*) client->context;
 
-	fprintf(stderr, "SendSurfaceUpdate: x: %d y: %d width: %d height: %d activated: %d surface: %p\n",
-			x, y, width, height, ctx->activated, ctx->surface);
+	//fprintf(stderr, "SendSurfaceUpdate: x: %d y: %d width: %d height: %d activated: %d surface: %p\n",
+	//		x, y, width, height, ctx->activated, ctx->surface);
 
 	context = (rdpContext*) client->context;
 	settings = context->settings;
+	surface = ctx->surface;
 
 	invalidRect.left = x;
 	invalidRect.top = y;
 	invalidRect.right = x + width;
 	invalidRect.bottom = y + height;
 
-	region16_union_rect(&ctx->invalidRegion, &ctx->invalidRegion, &invalidRect);
+	if ((width * height) > 0)
+	{
+		EnterCriticalSection(&ctx->lock);
 
-	if (!ctx->activated)
+		region16_union_rect(&ctx->invalidRegion, &ctx->invalidRegion, &invalidRect);
+
+		if (surface)
+		{
+			surfaceRect.left = 0;
+			surfaceRect.top = 0;
+			surfaceRect.right = surface->width;
+			surfaceRect.bottom = surface->height;
+
+			region16_intersect_rect(&ctx->invalidRegion, &ctx->invalidRegion, &surfaceRect);
+		}
+
+		LeaveCriticalSection(&ctx->lock);
+	}
+
+	if (!ctx->activated || !ctx->surface)
 		return 1;
 
-	if (!ctx->surface)
+	if (!surface)
 		return 1;
 
-	surface = ctx->surface;
-
-	surfaceRect.left = 0;
-	surfaceRect.top = 0;
-	surfaceRect.right = surface->width;
-	surfaceRect.bottom = surface->height;
-
-	region16_intersect_rect(&ctx->invalidRegion, &ctx->invalidRegion, &surfaceRect);
+	EnterCriticalSection(&ctx->lock);
 
 	if (region16_is_empty(&ctx->invalidRegion))
+	{
+		LeaveCriticalSection(&ctx->lock);
 		return 1;
+	}
 
 	extents = region16_extents(&ctx->invalidRegion);
 
@@ -898,6 +993,8 @@ int RDPPeer::SendSurfaceUpdate(int x, int y, int width, int height)
 	b = extents->bottom;
 
 	region16_clear(&ctx->invalidRegion);
+
+	LeaveCriticalSection(&ctx->lock);
 
 	if (l % 16)
 		l -= (l % 16);
@@ -930,7 +1027,7 @@ int RDPPeer::SendSurfaceUpdate(int x, int y, int width, int height)
 		height = (int) buf_height;
 	}
 
-	//fprintf(stderr, "SendSurfaceUpdate: x: %d y: %d width: %d height: %d\n", x, y, width, height);
+	fprintf(stderr, "SendSurfaceUpdate: x: %d y: %d width: %d height: %d\n", x, y, width, height);
 
 	if (settings->RemoteFxCodec || settings->NSCodec)
 	{
