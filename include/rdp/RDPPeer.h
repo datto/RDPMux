@@ -18,11 +18,13 @@
 #define QEMU_RDP_RDPPEER_H
 
 #include "common.h"
-#include "DisplayBuffer.h"
+#include "RDPSurface.h"
+#include "RDPEncoder.h"
 #include <freerdp/freerdp.h>
 #include <atomic>
 #include <pixman.h>
 
+#include <freerdp/codec/region.h>
 #include <freerdp/server/rdpsnd.h>
 #include <freerdp/server/audin.h>
 
@@ -110,7 +112,7 @@ public:
      *
      * @param f The display buffer pixel format.
      */
-    void FullDisplayUpdate(pixman_format_code_t f);
+    void FullDisplayUpdate(uint32_t displayWidth, uint32_t displayHeight, pixman_format_code_t f);
 
     /**
      * @brief Gets the width of the surface.
@@ -136,16 +138,19 @@ public:
 private:
     freerdp_peer *client;
     void *shm_buffer_region;
-    RDPListener *listener;
-    DisplayBuffer *surface;
+    RDPListener* listener;
     size_t buf_width;
     size_t buf_height;
+    PIXEL_FORMAT buf_format;
 
     std::mutex surface_lock;
 
-    void UpdateRegion(uint32_t x, uint32_t y, uint32_t w, uint32_t h, BOOL fullRefresh);
+    int SendSurfaceBits(int nXSrc, int nYSrc, int nWidth, int nHeight);
+    int SendBitmapUpdate(int nXSrc, int nYSrc, int nWidth, int nHeight);
+    int SendSurfaceUpdate(int x, int y, int width, int height);
+
     PIXEL_FORMAT GetPixelFormatForPixmanFormat(pixman_format_code_t f);
-    void CreateSurface(PIXEL_FORMAT r);
+    void CreateSurface(int width, int height, PIXEL_FORMAT r);
 };
 
 /**
@@ -156,25 +161,20 @@ struct peer_context {
     rdpContext _p;
     RDPPeer *peerObj;
 
-    RFX_CONTEXT *rfx_context;
-    NSC_CONTEXT *nsc_context;
-    wStream *s;
-    BYTE *icon_data;
-    BYTE *bg_data;
-    int icon_width;
-    int icon_height;
-    int icon_x;
-    int icon_y;
+    UINT32 sourceBpp;
+    UINT32 sourceFormat;
+    UINT32 encodeFormat;
+    UINT32 frameRate;
+    UINT32 minFrameRate;
+    UINT32 maxFrameRate;
+    rdpMuxEncoder* encoder;
+    rdpMuxSurface* surface;
+    REGION16 invalidRegion;
+    CRITICAL_SECTION lock;
     BOOL activated;
     HANDLE event;
     HANDLE stopEvent;
     HANDLE vcm;
-    void *debug_channel;
-    HANDLE debug_channel_thread;
-    audin_server_context *audin;
-    BOOL audin_open;
-    std::atomic_int frame_id;
-    RdpsndServerContext *rdpsound;
 };
 typedef struct peer_context PeerContext;
 #endif //QEMU_RDP_RDPPEER_H
