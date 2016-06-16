@@ -166,7 +166,7 @@ void RDPListener::processIncomingMessage(std::vector<uint32_t> rvec)
 {
     // we filter by what type of message it is
     if (rvec[0] == DISPLAY_UPDATE) {
-        VLOG(1) << "LISTENER " << this << ": processing display update event now";
+        //VLOG(1) << "LISTENER " << this << ": processing display update event now";
         processDisplayUpdate(rvec);
     } else if (rvec[0] == DISPLAY_SWITCH) {
         VLOG(2) << "LISTENER " << this << ": processing display switch event now";
@@ -195,17 +195,17 @@ void RDPListener::processDisplayUpdate(std::vector<uint32_t> msg)
              w = msg.at(3),
              h = msg.at(4);
 
-    VLOG(1) << "LISTENER " << this << ": Now taking lock on peerlist to send display update message";
+    //VLOG(1) << "LISTENER " << this << ": Now taking lock on peerlist to send display update message";
     {
         std::lock_guard<std::mutex> lock(peerlist_mutex);
         if (peerlist.size() > 0) {
-            VLOG(2) << std::dec << "LISTENER " << this << ": Now processing display update message [(" << (int) x << ", " << (int) y << ") " << (int) w << ", " << (int) h << "]";
+            //VLOG(2) << std::dec << "LISTENER " << this << ": Now processing display update message [(" << (int) x << ", " << (int) y << ") " << (int) w << ", " << (int) h << "]";
             std::for_each(peerlist.begin(), peerlist.end(), [=](RDPPeer *peer) {
                 peer->PartialDisplayUpdate(x, y, w, h);
             });
         }
     }
-    VLOG(1) << "LISTENER " << this << ": Lock released successfully! Continuing.";
+    //VLOG(1) << "LISTENER " << this << ": Lock released successfully! Continuing.";
 
     // send back display update complete message
     std::vector<uint16_t> vec;
@@ -213,7 +213,7 @@ void RDPListener::processDisplayUpdate(std::vector<uint32_t> msg)
     vec.push_back(1);
 
     parent->sendMessage(vec, uuid);
-    VLOG(1) << "LISTENER " << this << ": Sent ack to QEMU process.";
+    //VLOG(1) << "LISTENER " << this << ": Sent ack to QEMU process.";
 }
 
 pixman_format_code_t RDPListener::GetFormat()
@@ -226,9 +226,9 @@ void RDPListener::processDisplaySwitch(std::vector<uint32_t> msg)
     // note that under current calling conditions, this will run in the thread of the RDPServerWorker associated with
     // the VM.
     VLOG(2) << "LISTENER " << this << ": Now processing display switch event";
-    uint32_t w = msg.at(2),
-             h = msg.at(3);
-    pixman_format_code_t format = (pixman_format_code_t) msg.at(1);
+    uint32_t displayWidth = msg.at(2);
+    uint32_t displayHeight = msg.at(3);
+    pixman_format_code_t displayFormat = (pixman_format_code_t) msg.at(1);
     int shim_fd;
     size_t shm_size = 4096 * 2048 * sizeof(uint32_t);
 
@@ -253,9 +253,9 @@ void RDPListener::processDisplaySwitch(std::vector<uint32_t> msg)
         this->shm_buffer = shm_buffer;
     }
 
-    this->width = w;
-    this->height = h;
-    this->format = format;
+    this->width = displayWidth;
+    this->height = displayHeight;
+    this->format = displayFormat;
 
     // send full display update to all peers, but only if there are peers connected
     {
@@ -263,7 +263,7 @@ void RDPListener::processDisplaySwitch(std::vector<uint32_t> msg)
         if (peerlist.size() > 0) {
             std::for_each(peerlist.begin(), peerlist.end(), [=](RDPPeer *peer) {
                 VLOG(3) << "LISTENER " << this << ": Sending peer update region request now";
-                peer->FullDisplayUpdate(format);
+                peer->FullDisplayUpdate(displayWidth, displayHeight, displayFormat);
             });
         }
     }
