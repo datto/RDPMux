@@ -1019,7 +1019,7 @@ int RDPPeer::SendSurfaceUpdate(int x, int y, int width, int height)
 	width = r - l;
 	height = b - t;
 
-	if (1)
+	if (0)
 	{
 		x = 0;
 		y = 0;
