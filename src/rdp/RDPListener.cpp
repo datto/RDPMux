@@ -14,24 +14,14 @@
  * limitations under the License.
  */
 
-#include <iostream>
-#include <tuple>
-#include <functional>
-#include <cstring>
-
+#include "rdp/RDPListener.h"
+#include "RDPServerWorker.h"
+#include <freerdp/channels/channels.h>
+#include <msgpack/object.hpp>
+#include "rdp/RDPPeer.h"
 #include <sys/mman.h>
 #include <fcntl.h>
 
-#include <msgpack/sbuffer.hpp>
-#include <msgpack/object.hpp>
-#include <freerdp/channels/channels.h>
-
-#include "nanomsg.h"
-#include "rdp/RDPListener.h"
-#include "util/logging.h"
-#include "common.h"
-
-thread_local nn::socket *my_nn_socket = NULL;
 thread_local RDPListener *rdp_listener_object = NULL;
 
 /**
@@ -39,7 +29,7 @@ thread_local RDPListener *rdp_listener_object = NULL;
  *
  * This function marshals the arguments needed to start up an RDPPeer thread, and passes them into the new thread
  * function. The thread created runs RDPPeer::PeerThread as a detached thread. For reasons lost to the mists of time,
- * this function actually uses the winRP API to start the thread instead of straight pthreads.
+ * this function actually uses the winPR API to start the thread instead of straight pthreads.
  *
  * @returns Success of the thread creation
  *
@@ -51,7 +41,7 @@ BOOL StartPeerLoop(freerdp_listener *instance, freerdp_peer *client)
     HANDLE hThread;
 
     // get our args together, and start the thread
-    auto arg_tuple = new std::tuple<freerdp_peer*, const nn::socket*, RDPListener *>(client, my_nn_socket, rdp_listener_object);
+    auto arg_tuple = new std::tuple<freerdp_peer*, RDPListener *>(client, rdp_listener_object);
     if (!(hThread = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE) RDPPeer::PeerThread, (void *) arg_tuple, 0, NULL))) {
         return FALSE;
     }
@@ -59,15 +49,26 @@ BOOL StartPeerLoop(freerdp_listener *instance, freerdp_peer *client)
     return TRUE;
 }
 
-RDPListener::RDPListener(nn::socket *sock) : shm_buffer(0)
+Glib::ustring RDPListener::introspection_xml =
+        "<node>"
+        "  <interface name='org.RDPMux.RDPListener'>"
+        "    <property type='i' name='Port' access='read' />"
+        "    <property type='i' name='NumConnectedPeers' access='read'/>"
+        "  </interface>"
+        "</node>";
+
+RDPListener::RDPListener(std::string uuid, int vm_id, uint16_t port, RDPServerWorker *parent,
+                         Glib::RefPtr<Gio::DBus::Connection> conn) : shm_buffer(nullptr),
+                                                                     dbus_conn(conn),
+                                                                     parent(parent),
+                                                                     port(port),
+                                                                     uuid(uuid),
+                                                                     vm_id(vm_id)
 {
     WTSRegisterWtsApiFunctionTable(FreeRDP_InitWtsApi());
-    this->sock = sock;
-    my_nn_socket = sock;
     stop = false;
 
     listener = freerdp_listener_new();
-    rdp_listener_object = this; // store a reference to the object in thread-local storage for the peer connections
 
     if (!listener) {
         LOG(FATAL) << "LISTENER " << this << ": Listener didn't alloc properly, exiting.";
@@ -91,10 +92,33 @@ RDPListener::~RDPListener()
     WSACleanup();
 }
 
-void RDPListener::RunServer(uint16_t port)
+void RDPListener::RunServer()
 {
     void *connections[32];
     DWORD count = 0;
+
+    rdp_listener_object = this; // store a reference to the object in thread-local storage for the peer connections
+
+    // dbus setup
+    const Gio::DBus::InterfaceVTable vtable(sigc::mem_fun(this, &RDPListener::on_method_call),
+                                            sigc::mem_fun(this, &RDPListener::on_property_call));
+
+    Glib::RefPtr<Gio::DBus::NodeInfo> introspection_data;
+    try {
+        introspection_data = Gio::DBus::NodeInfo::create_for_xml(introspection_xml);
+    } catch (const Glib::Error &ex) {
+        LOG(WARNING) << "LISTENER " << this << ": Unable to create introspection data.";
+        return;
+    }
+
+    // create listener name
+    Glib::ustring dbus_name = "/org/RDPMux/RDPListener/";
+    // sanitize uuid before creating dbus object
+    std::string thing = uuid;
+    thing.erase(std::remove(thing.begin(), thing.end(), '-'), thing.end());
+    dbus_name += thing;
+
+    registered_id = dbus_conn->register_object(dbus_name, introspection_data->lookup_interface(), vtable);
 
     if (listener->Open(listener, NULL, port)) {
         VLOG(1) << "LISTENER " << this << ": Listener started successfully.";
@@ -129,42 +153,67 @@ void RDPListener::RunServer(uint16_t port)
         }
     }
     VLOG(1) << "LISTENER " << this << ": Main loop exited";
-    // after the main loop, we should do nothing. In a perfect world, the destructor is called automatically
-    // when the object goes out of scope, which should be soonish after the resolution of this function.
+    parent->UnregisterVM(this->uuid, this->port); // this will trigger destruction of the RDPListener object.
+}
+
+void RDPListener::processOutgoingMessage(std::vector<uint16_t> vec)
+{
+    QueueItem item = std::make_tuple(vec, this->uuid);
+    parent->queueOutgoingMessage(item);
+}
+
+void RDPListener::processIncomingMessage(std::vector<uint32_t> rvec)
+{
+    // we filter by what type of message it is
+    if (rvec[0] == DISPLAY_UPDATE) {
+        //VLOG(1) << "LISTENER " << this << ": processing display update event now";
+        processDisplayUpdate(rvec);
+    } else if (rvec[0] == DISPLAY_SWITCH) {
+        VLOG(2) << "LISTENER " << this << ": processing display switch event now";
+        processDisplaySwitch(rvec);
+    } else if (rvec[0] == SHUTDOWN) {
+        VLOG(2) << "LISTENER " << this << ": Shutdown event received!";
+        {
+            std::unique_lock<std::mutex> lock(stopMutex);
+            stop = true;
+        }
+    } else {
+        // what the hell have you sent me
+        LOG(WARNING) << "Invalid message type sent.";
+    }
 }
 
 void RDPListener::processDisplayUpdate(std::vector<uint32_t> msg)
 {
-    // note that under current calling conditions, this will run in the thread of the RDPServerWorker associated with
-    // the VM.
+    // note that under current calling conditions, this will run in the mainloop of the RDPServerWorker. This is what
+    // allows us to call RDPServerWorker::SendMessage without worrying about thread-safety. IF YOU EVER MOVE THINGS
+    // AROUND SUCH THAT THIS FUNCTION IS RUN IN A SEPARATE THREAD, YOU'LL NEED TO FIGURE OUT A BETTER WAY TO SEND
+    // MESSAGES! I recommend a queue, they're super swell.
 
     uint32_t x = msg.at(1),
              y = msg.at(2),
              w = msg.at(3),
              h = msg.at(4);
 
-    VLOG(1) << "LISTENER " << this << ": Now taking lock on peerlist to send display update message";
+    //VLOG(1) << "LISTENER " << this << ": Now taking lock on peerlist to send display update message";
     {
         std::lock_guard<std::mutex> lock(peerlist_mutex);
         if (peerlist.size() > 0) {
-            VLOG(2) << std::dec << "LISTENER " << this << ": Now processing display update message [(" << (int) x << ", " << (int) y << ") " << (int) w << ", " << (int) h << "]";
+            //VLOG(2) << std::dec << "LISTENER " << this << ": Now processing display update message [(" << (int) x << ", " << (int) y << ") " << (int) w << ", " << (int) h << "]";
             std::for_each(peerlist.begin(), peerlist.end(), [=](RDPPeer *peer) {
                 peer->PartialDisplayUpdate(x, y, w, h);
             });
         }
     }
-    VLOG(1) << "LISTENER " << this << ": Lock released successfully! Continuing.";
+    //VLOG(1) << "LISTENER " << this << ": Lock released successfully! Continuing.";
 
     // send back display update complete message
-    std::vector<uint32_t> vec;
+    std::vector<uint16_t> vec;
     vec.push_back(DISPLAY_UPDATE_COMPLETE);
     vec.push_back(1);
 
-    msgpack::sbuffer sbuf;
-    msgpack::pack(sbuf, vec);
-
-    sock->send(sbuf.data(), sbuf.size(), 0);
-    VLOG(1) << "LISTENER " << this << ": Sent ack to QEMU process.";
+    parent->sendMessage(vec, uuid);
+    //VLOG(1) << "LISTENER " << this << ": Sent ack to QEMU process.";
 }
 
 pixman_format_code_t RDPListener::GetFormat()
@@ -172,14 +221,14 @@ pixman_format_code_t RDPListener::GetFormat()
     return format;
 }
 
-void RDPListener::processDisplaySwitch(std::vector<uint32_t> msg, int vm_id)
+void RDPListener::processDisplaySwitch(std::vector<uint32_t> msg)
 {
     // note that under current calling conditions, this will run in the thread of the RDPServerWorker associated with
     // the VM.
     VLOG(2) << "LISTENER " << this << ": Now processing display switch event";
-    uint32_t w = msg.at(2),
-             h = msg.at(3);
-    pixman_format_code_t format = (pixman_format_code_t) msg.at(1);
+    uint32_t displayWidth = msg.at(2);
+    uint32_t displayHeight = msg.at(3);
+    pixman_format_code_t displayFormat = (pixman_format_code_t) msg.at(1);
     int shim_fd;
     size_t shm_size = 4096 * 2048 * sizeof(uint32_t);
 
@@ -187,9 +236,12 @@ void RDPListener::processDisplaySwitch(std::vector<uint32_t> msg, int vm_id)
 
     // map in new shmem region if it's the first time
     if (!shm_buffer) {
-        const Glib::ustring path = Glib::ustring::compose("/%1.rdpmux", vm_id);
-        shim_fd = shm_open(path.data(), O_RDONLY, S_IRUSR | S_IRGRP | S_IROTH);
-        VLOG(2) << "LISTENER " << this << ": shim_fd is " << shim_fd;
+        std::stringstream ss;
+        ss << "/" << vm_id << ".rdpmux";
+
+        VLOG(2) << "LISTENER " << this << ": Creating new shmem buffer from path " << ss.str();
+        shim_fd = shm_open(ss.str().data(), O_RDONLY, S_IRUSR | S_IRGRP | S_IROTH);
+        VLOG(3) << "LISTENER " << this << ": shim_fd is " << shim_fd;
 
         void *shm_buffer = mmap(NULL, shm_size, PROT_READ, MAP_SHARED, shim_fd, 0);
         if (shm_buffer == MAP_FAILED) {
@@ -201,9 +253,9 @@ void RDPListener::processDisplaySwitch(std::vector<uint32_t> msg, int vm_id)
         this->shm_buffer = shm_buffer;
     }
 
-    this->width = w;
-    this->height = h;
-    this->format = format;
+    this->width = displayWidth;
+    this->height = displayHeight;
+    this->format = displayFormat;
 
     // send full display update to all peers, but only if there are peers connected
     {
@@ -211,7 +263,7 @@ void RDPListener::processDisplaySwitch(std::vector<uint32_t> msg, int vm_id)
         if (peerlist.size() > 0) {
             std::for_each(peerlist.begin(), peerlist.end(), [=](RDPPeer *peer) {
                 VLOG(3) << "LISTENER " << this << ": Sending peer update region request now";
-                peer->FullDisplayUpdate(format);
+                peer->FullDisplayUpdate(displayWidth, displayHeight, displayFormat);
             });
         }
     }
@@ -245,3 +297,28 @@ size_t RDPListener::GetHeight()
 {
     return this->height;
 }
+
+void RDPListener::on_method_call(const Glib::RefPtr<Gio::DBus::Connection> &,
+                                 const Glib::ustring &,
+                                 const Glib::ustring &, const Glib::ustring &,
+                                 const Glib::ustring &method_name,
+                                 const Glib::VariantContainerBase &parameters,
+                                 const Glib::RefPtr<Gio::DBus::MethodInvocation> &invocation)
+{
+    // nothing here for now
+}
+
+void RDPListener::on_property_call(Glib::VariantBase &property,
+                                   const Glib::RefPtr<Gio::DBus::Connection> &,
+                                   const Glib::ustring &,
+                                   const Glib::ustring &,
+                                   const Glib::ustring &,
+                                   const Glib::ustring &property_name)
+{
+    if (property_name == "Port") {
+        property = Glib::Variant<uint16_t>::create(port);
+    } else if (property_name == "NumConnectedPeers") {
+        property = Glib::Variant<uint32_t>::create(peerlist.size());
+    }
+}
+

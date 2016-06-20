@@ -17,51 +17,16 @@
 #ifndef QEMU_RDP_MESSAGEQUEUE_H
 #define QEMU_RDP_MESSAGEQUEUE_H
 
-#include <queue>
+#include "common.h"
+#include <msgpack/sbuffer.hpp>
 #include <mutex>
 #include <condition_variable>
+#include <queue>
 
-#include <glibmm/threads.h>
-#include <bits/unique_ptr.h>
-#include <nanomsg/nn.h>
-
-/**
- * @brief Object to hold a message in a queue until it is processed.
- */
-class QueueItem
-{
-public:
-    /**
-     * @brief Creates a new QueueItem.
-     *
-     * @param i The message to hold.
-     * @param size The size of the message.
-     */
-    QueueItem(void *i, int size) {
-        item_size = size;
-        item = i;
-    }
-
-    /**
-     * @brief Frees the held message safely.
-     */
-    ~QueueItem() {
-        nn_freemsg(item);
-    };
-
-    /**
-     * @brief The held message.
-     */
-    void *item;
-
-    /**
-     * @brief The size of item.
-     */
-    int item_size;
-};
+typedef std::tuple<std::vector<uint16_t>, std::string> QueueItem;
 
 /**
- * @brief A synchronized FIFO queue backed by an std::queue to hold messages for processing.
+ * @brief A synchronized FIFO queue backed by an std::queue to hold msgpack::sbufs for processing.
  */
 class MessageQueue
 {
@@ -83,19 +48,19 @@ public:
      *
      * @param item The item to place in the queue.
      */
-    void enqueue(QueueItem *item);
+    void enqueue(QueueItem item);
 
     /**
      * @brief Dequeue the next item in the queue.
      *
      * @returns Reference to the dequeued item.
      */
-    const QueueItem* dequeue();
+    const QueueItem dequeue();
 
 private:
     std::mutex mutex_;
     std::condition_variable cond_push_;
-    std::queue<QueueItem *> queue_;
+    std::queue<QueueItem> queue_;
 };
 
 #endif //QEMU_RDP_MESSAGEQUEUE_H

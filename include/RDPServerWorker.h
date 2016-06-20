@@ -17,51 +17,39 @@
 #ifndef QEMU_RDP_RDPSERVERWORKER_H
 #define QEMU_RDP_RDPSERVERWORKER_H
 
-
-#include <glibmm/thread.h>
-#include <glibmm/dispatcher.h>
-
+#include <giomm/dbusconnection.h>
+#include "common.h"
 #include "util/MessageQueue.h"
-#include "nanomsg.h"
+#include "util/zmq_addon.hpp"
 #include "rdp/RDPListener.h"
 
-
-// TODO: add path validation checking (if the path given is to a writable directory, if it's a valid path, etc.)
 /**
- * @brief The RDPServerWorker class manages the lifetime of the nanomsg socket and the RDP server and connection associated
- * with the VM.
+ * @brief The RDPServerWorker class manages the lifetime of the ZeroMQ socket. It also manages the lifetimes of all
+ * associated VM connections and RDP listeners.
  *
- * RDPServerWorkers are spawned when a VM registers with the RDPMux server, and manage the lifecycle of the communication
- * socket associated with the VM and the RDP server spawned to interact with the VM and client. They exist for as long as
- * the VM associated with the connection is alive, and are closed when the VM itself closes.
- *
- * RDPServerworkers manage the deserialization of messages from the VM, and dispatching messages to the RDP listener.
+ * The RDPServerWorker is created and initialized during RDPMux startup. It manages the lifecycle of the ZeroMQ
+ * socket. In addition, the RDPServerworker manages the deserialization of messages from the VM, and dispatching
+ * messages to and from the appropriate RDP listener.
  */
 class RDPServerWorker
 {
 public:
     /**
-     * @brief Creates a new RDPServerworker object.
+     * @brief Creates a new RDPServerWorker.
      *
-     * @param path File path to the nanomsg socket in the filesystem
-     * @param vm_id Internal VM ID.
-     * @param uuid The external UUID of the VM.
+     * Upon creation, a new ZeroMQ ROUTER socket is created and/or bound to. No events are processed until
+     * a VM has registered using RegisterNewVM();
+     *
+     * @param port The starting port for new RDP listener connections
+     * @param socket_path File path to the ZeroMQ socket.
      */
-    RDPServerWorker(const Glib::ustring &path, int vm_id, uint16_t port, Glib::ustring uuid) : out_thread(0),
-                                                                                               stop(false)
-    {
-        socket_path = path;
-        this->vm_id = vm_id;
-        this->port = port;
-        this->uuid = uuid;
-    }
+    RDPServerWorker(uint16_t port);
 
     /**
-     * @brief starts the run loop.
+     * @brief Initializes the run loop. After this function returns successfully, the ServerWorker is ready to process
+     * messages.
      */
-    void start() {
-        out_thread = Glib::Thread::create(sigc::mem_fun(*this, &RDPServerWorker::run), true);
-    }
+    bool Initialize();
 
     /**
      * @brief Safely takes down the server worker.
@@ -69,45 +57,26 @@ public:
      * Sets stop to true to indicate to the worker thread to stop processing, then joins the thread and waits for
      * completion.
      */
-    ~RDPServerWorker()
-    {
-        {
-            Glib::Mutex::Lock lock(mutex);
-            stop = true;
-        }
-        if (out_thread)
-            out_thread->join(); // here we block and wait for the thread to actually complete
-    }
+    ~RDPServerWorker();
 
     /**
-     * @brief Signal that socket creation has completed.
-     */
-    Glib::Dispatcher socket_creation_done; // signal that socket creation is complete
-
-    /**
-     * @brief Integer denoting the next port to start a listener on.
-     */
-    uint16_t port;
-
-    /**
-     * @brief Reference to the process's DBus connection for registering ServerWorker object.
-     */
-    Glib::RefPtr<Gio::DBus::Connection> dbus_conn;
-
-    /**
-    * @brief Introspection XML for the DBus object on the bus.
-    */
-    static Glib::ustring introspection_xml;
-
-    /**
-     * @brief Processes incoming messages and dispatches them to the listener appropriately.
+     * @brief Registers and initializes new VM connection.
      *
-     * This function is called once the deserializes incoming messages into an stl::vector and sends that vector
-     * to the RDP listener.
+     * Register and initialize a new VM connection. Set up and initialize RDP listener.
      *
-     * @param item The item to deserialize.
+     * @returns bool Success
+     * @param uuid UUID of incoming VM connection.
+     * @param vm_id Unique ID of VM fb.
      */
-    void processIncomingMessage(const QueueItem *item);
+    bool RegisterNewVM(std::string uuid, int vm_id);
+
+    /**
+     * @brief Unregisters VM
+     *
+     * Removes listener port from open ports list and removes the shared_ptr wrapping the RDPListener object.
+     * Everything will self-destruct as that shared_ptr goes out of scope, so be careful when you invoke this!
+     */
+    void UnregisterVM(std::string uuid, uint16_t port);
 
     /**
      * @brief Sets the current DBus connection for internal usage.
@@ -116,71 +85,86 @@ public:
      */
     void setDBusConnection(Glib::RefPtr<Gio::DBus::Connection> conn);
 
+    /**
+     * @brief Send a message to the VM with the identity espoused by the UUID.
+     *
+     * @param sbuf msgpack::sbuffer object containing the serialized data
+     * @param uuid the UUID of the VM to send this message to
+     */
+    void sendMessage(std::vector<uint16_t> vec, std::string uuid);
+
+    /**
+     * @brief queues outgoing message
+     *
+     * @param item QueueItem to be sent.
+     */
+    void queueOutgoingMessage(QueueItem item);
+
 protected:
     /**
-     * @brief Reference to worker thread spinning on the out loop.
+     * @brief starting port for new connections
      */
-    Glib::Thread *out_thread;
+    uint16_t starting_port;
+
     /**
      * @brief Lock guarding stop.
      */
-    Glib::Mutex mutex;
+    std::mutex stop_mutex;
+
     /**
      * @brief Variable set to indicate when the RDPServerWorker is stopping.
      */
     bool stop;
-    /**
-     * @brief Path to the socket in the filesystem.
-     */
-    Glib::ustring socket_path;
-    /**
-     * @brief UUID of the VM associated with this ServerWorker.
-     */
-    Glib::ustring uuid;
-    /**
-     * @brief Pointer to the nanomsg socket.
-     */
-    nn::socket *sock;
-    /**
-     * @brief ID of the VM associated with this RDPServerWorker object.
-     */
-    int vm_id;
 
     /**
-     * @brief Reference to the RDPListener object spawned by this VM.
+     * @brief Whether the ServerWorker is initialized.
      */
-    RDPListener *l;
+    bool initialized;
+
+    /**
+     * @brief Hashmap from UUID to RDPListeners.
+     */
+    std::map<std::string, std::shared_ptr<RDPListener>> listener_map;
+
+    /**
+     * @brief Hashmap from UUID to current ZeroMQ connection id
+     */
+    std::map<std::string, std::string> connection_map;
+
+    /**
+     * @brief Set containing all in-use ports. Used to intelligently re-use ports as VMs come and go.
+     */
+    std::set<uint16_t> ports;
+
+    /**
+     * @brief mutex on ports so that concurrent accesses are okay.
+     */
+    std::mutex container_lock;
+
+    /**
+    * @brief Reference to the process's DBus connection for registering listeners.
+    */
+    Glib::RefPtr<Gio::DBus::Connection> dbus_conn;
+
+    /**
+     * @brief Queue containing outbound messages.
+     */
+    MessageQueue out_queue;
+
+    /**
+     * @brief ZeroMQ context.
+     */
+    zmq::context_t context;
+
+    /**
+     * @brief ZeroMQ socket.
+     */
+    zmq::socket_t zsocket;
 
     /**
      * @brief Main loop function that receives messages and processes them for dispatch to the RDP listener.
      */
     void run();
-
-    /**
-     * @brief Method called when a DBus method call is invoked.
-     */
-    void on_method_call(const Glib::RefPtr<Gio::DBus::Connection> &,
-                        const Glib::ustring &,
-                        const Glib::ustring &,
-                        const Glib::ustring &,
-                        const Glib::ustring &method_name,
-                        const Glib::VariantContainerBase &parameters,
-                        const Glib::RefPtr<Gio::DBus::MethodInvocation> &invocation);
-
-    /**
-     * @brief Method called when a DBus property is needed.
-     */
-    void on_property_call(Glib::VariantBase& property,
-                                 const Glib::RefPtr<Gio::DBus::Connection>&,
-                                 const Glib::ustring&,
-                                 const Glib::ustring&,
-                                 const Glib::ustring&,
-                                 const Glib::ustring& property_name);
-
-    /**
-     * @brief ID of the registered DBus object.
-     */
-    guint registered_id = 0;
 };
 
 

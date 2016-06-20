@@ -17,6 +17,11 @@
 #ifndef QEMU_RDP_COMMON_H
 #define QEMU_RDP_COMMON_H
 
+#include <memory>
+#include <cstdbool>
+#include "util/logging.h"
+#include <giomm-2.4/giomm.h>
+
 /**
  * @brief enum of message types.
  */
@@ -28,5 +33,43 @@ enum message_type {
     DISPLAY_UPDATE_COMPLETE,
     SHUTDOWN
 };
+
+/**
+ * @brief std::make_unique from C++14
+ *
+ * std::make_unique backported from C++14 because it's just too useful not to have.
+ *
+ * @code
+ * std::unique_ptr<Vec3> v1 = make_unique<Vec3>();
+ * @endcode
+ *
+ * @returns std::unique_ptr encapsulating the object
+ *
+ * @param Args used to create the pointer to the object
+ */
+template<typename _Tp, typename... _Args>
+std::unique_ptr<_Tp> make_unique(_Args &&... __args)
+{
+    return std::unique_ptr<_Tp>(new _Tp(std::forward<_Args>(__args)...));
+}
+
+/**
+ * @brief std::make_unique from C++14
+ *
+ * std::make_unique backported from C++14 because it's just too useful not to have.
+ *
+ * @code
+ * std::unique_ptr<Vec3[]> v3 = make_unique<Vec3[]>(5);
+ * @endcode
+ *
+ * @returns std::unique_ptr encapsulating the array
+ *
+ * @param size of the array you wish to encapsulate
+ */
+template<typename _Tp>
+std::unique_ptr<_Tp> make_unique(std::size_t __num)
+{
+    return std::unique_ptr<_Tp>(new typename std::remove_extent<_Tp>::type[__num]());
+}
 
 #endif //QEMU_RDP_COMMON_H

@@ -14,186 +14,200 @@
  * limitations under the License.
  */
 
-#include <nanomsg/pair.h>
-
-#include <memory>
-#include <util/MessageQueue.h>
-#include <iostream>
-#include <algorithm>
-#include <sys/stat.h>
-#include <msgpack.hpp>
-#include <thread>
-#include <util/logging.h>
-#include <giomm/dbusconnection.h>
-#include "nanomsg.h"
+#include <msgpack/object.hpp>
+#include <msgpack/unpack.hpp>
 #include "RDPServerWorker.h"
-#include "common.h"
 
-Glib::ustring RDPServerWorker::introspection_xml =
-        "<node>"
-        "  <interface name='org.RDPMux.ServerWorker'>"
-        "    <property type='i' name='Port' access='read' />"
-        "  </interface>"
-        "</node>";
+RDPServerWorker::RDPServerWorker(uint16_t port)
+        : starting_port(port),
+          initialized(false),
+          context(1), // todo: explore the possibility of needing more than one thread
+          zsocket(context, ZMQ_ROUTER)
+{
+    std::string path = "ipc://@/tmp/rdpmux";
+    zsocket.setsockopt(ZMQ_ROUTER_MANDATORY, 1);
+    zsocket.bind(path);
+}
+
+RDPServerWorker::~RDPServerWorker()
+{
+    std::lock_guard<std::mutex> lock(stop_mutex);
+    stop = true;
+}
 
 void RDPServerWorker::setDBusConnection(Glib::RefPtr<Gio::DBus::Connection> conn)
 {
-    if (!dbus_conn)
+    if (!dbus_conn) {
         dbus_conn = conn;
+    } else {
+        LOG(WARNING) << "Duplicate DBus connection passed in! SHOULD NOT HAPPEN";
+    }
+}
+
+bool RDPServerWorker::Initialize()
+{
+    std::thread loop(&RDPServerWorker::run, this);
+    loop.detach();
+    initialized = true;
+    return initialized;
+}
+
+bool RDPServerWorker::RegisterNewVM(std::string uuid, int id)
+{
+    std::lock_guard<std::mutex> lock(container_lock); // take lock on both ports and listener_map
+    uint16_t port = 0;
+    std::shared_ptr<RDPListener> l;
+
+    // find the next available port from the list
+    // stdlib already uses binary search, so if this gets slow for you, consider not running as many VMs on the same
+    // computer
+    for (uint16_t i = starting_port; i < 65535; i++) {
+        if (ports.count(i) == 0) {
+            // check if port is available to be bound
+            struct addrinfo hints, *res;
+            int sockfd;
+
+            memset(&hints, 0, sizeof(hints));
+            hints.ai_family = AF_INET; // IPv4
+            hints.ai_socktype = SOCK_STREAM; // TCP stream socket
+            getaddrinfo("0.0.0.0", std::to_string(i).c_str(), &hints, &res); // check for usage across all interfaces
+
+            sockfd = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
+
+            // try binding
+            int ret = bind(sockfd, res->ai_addr, res->ai_addrlen);
+            free(res); // free the linked list of results no matter what
+            if (ret < 0) {
+                continue;
+            }
+            close(sockfd);
+            port = i;
+            ports.insert(i);
+            break;
+        }
+    }
+
+    if (port == 0 || port > 65535) {
+        LOG(WARNING) << "Invalid server port number: " << port;
+        return false;
+    }
+
+    try {
+        l = std::make_shared<RDPListener>(uuid, id, port, this, dbus_conn); // in here go the RDPListener args
+    } catch (std::exception &e) {
+        return false;
+    }
+
+    std::thread l_thread([l]() {l->RunServer();}); // i think this properly increments and decrements...?
+    l_thread.detach();
+
+    listener_map.insert(std::make_pair(uuid, l));
+
+    return true;
+}
+
+void RDPServerWorker::UnregisterVM(std::string uuid, uint16_t port)
+{
+    std::lock_guard<std::mutex> lock(container_lock);
+    ports.erase(port);
+    listener_map.erase(uuid); // rip listener
+}
+
+void RDPServerWorker::sendMessage(std::vector<uint16_t> vec, std::string uuid)
+{
+    zmq::multipart_t msg;
+
+    try {
+        msg.addstr(connection_map.at(uuid));
+    } catch (std::out_of_range &e) {
+        LOG(ERROR) << "Could not find connection id for UUID " << uuid;
+        return;
+    }
+
+    msg.addstr(uuid);
+
+    msgpack::sbuffer sbuf;
+    msgpack::pack(&sbuf, vec);
+
+    msg.addmem(sbuf.data(), sbuf.size());
+
+    if (!msg.send(zsocket) || !msg.empty()) {
+        LOG(ERROR) << "Unable to send message " << vec;
+    }
+}
+
+void RDPServerWorker::queueOutgoingMessage(QueueItem item)
+{
+    out_queue.enqueue(std::move(item));
 }
 
 void RDPServerWorker::run()
 {
-    int to = 1000000;
-    nn::socket *sock = new nn::socket(AF_SP, NN_PAIR);
+    zmq::pollitem_t item = {
+            (void *) zsocket,
+            0,
+            ZMQ_POLLIN, // can i even do this?
+            0
+    };
 
-    try {
-        VLOG(3) << "Socket path is " << this->socket_path.data();
-        sock->bind(this->socket_path.data());
-        sock->setsockopt(NN_SOL_SOCKET, NN_RCVTIMEO, &to, sizeof(to));
-
-        // chmod socket to 777 // TODO: replace with actual solution
-        auto path = this->socket_path.substr(6, Glib::ustring::npos);
-        if (chmod(path.data(), S_IRWXU | S_IRWXG | S_IRWXO) < 0) {
-            LOG(WARNING) << "Setting permissions on the socket failed: " << strerror(errno);
-        }
-
-    } catch (nn::exception &ex) {
-        LOG(WARNING) << "Socket binding went wrong: " << ex.what();
-        return;
-    }
-    VLOG(2) << "WORKER " << this << ": Socket bound, hopefully it's listening properly. Address: " << sock;
-
-    // TODO: If listener startup fails, ServerWorker won't know about it :(
-    VLOG(3) << "WORKER " << this << ": Now passing sock to RDP listener and starting listener thread";
-    std::thread listener_thread([this](nn::socket *socket) {
-        VLOG(3) << "WORKER " << this << ": Internal socket pointer is " << socket;
-        RDPListener *listener;
-        try {
-            listener = new RDPListener(socket);
-        } catch (std::runtime_error &e) {
-            LOG(WARNING) << "WORKER " << this << ": Listener startup failed";
+    while (true) {
+        // check if we are terminating
+        std::lock_guard<std::mutex> lock(stop_mutex);
+        if (stop) {
+            LOG(INFO) << "ServerWorker loop terminating on stop";
+            initialized = false;
             return;
         }
-        l = listener;
-        listener->RunServer(this->port);
-        delete l;
-    }, sock);
-    listener_thread.detach();
 
-    // now that listener is up we can register the object on the bus
-    const Gio::DBus::InterfaceVTable vtable(sigc::mem_fun(*this, &RDPServerWorker::on_method_call), sigc::mem_fun(*this, &RDPServerWorker::on_property_call));
-    Glib::ustring worker_dbus_base_name = "/org/RDPMux/ServerWorker/";
+        // send outgoing messages first
+        while (!out_queue.isEmpty()) {
+            QueueItem msg = out_queue.dequeue();
+            auto vec = std::get<0>(msg);
+            sendMessage(vec, std::get<1>(msg));
+        }
 
-    // sanitize uuid before creating dbus object
-    std::string thing = uuid;
-    thing.erase(std::remove(thing.begin(), thing.end(), '-'), thing.end());
-    worker_dbus_base_name += thing;
+        int ret = zmq::poll(&item, 1, 5); // todo : determine reasonable poll interval
 
-    Glib::RefPtr<Gio::DBus::NodeInfo> introspection_data;
+        if (ret > 0) {
 
-    try {
-        introspection_data = Gio::DBus::NodeInfo::create_for_xml(introspection_xml);
-    } catch (const Glib::Error &ex) {
-        LOG(WARNING) << "WORKER " << this << ": Unable to create ServerWorker introspection data.";
-        return;
-    }
+            if (item.revents & ZMQ_POLLIN) {
+                zmq::multipart_t multi(zsocket);
 
-    registered_id = dbus_conn->register_object(worker_dbus_base_name,
-                               introspection_data->lookup_interface(), vtable);
+                if (multi.size() != 3) {
+                    LOG(WARNING) << "Possibly invalid message received! Message is: " << multi.str();
+                    continue;
+                }
 
-    MessageQueue qemu_event_queue;
+                //VLOG(3) << multi.str();
 
-    // main QEMU recv loop.
-    while (true) {
-        {
-            // check if we are terminating
-            Glib::Mutex::Lock lock(mutex);
-            if (stop) {
-                delete l;
-                break;
+                std::string id = multi.popstr();
+                std::string uuid = multi.popstr();
+                std::string data = multi.popstr();
+
+                msgpack::unpacked unpacked;
+                msgpack::unpack(&unpacked, data.data(), data.size());
+
+                // deserialize msgpack message and pass to correct listener
+                try {
+                    // so these two lines have to be in this order. if listener_map.at() fails, it'll skip the
+                    // connection_map line, which will silently create and/or update if nothing exists.
+                    auto server = listener_map.at(uuid);
+                    connection_map[uuid] = id;
+
+                    msgpack::object obj = unpacked.get();
+                    std::vector<uint32_t> vec;
+                    obj.convert(&vec);
+                    //VLOG(2) << "Processing incoming message " << vec;
+                    server->processIncomingMessage(vec);
+                } catch (std::out_of_range &e) {
+                    LOG(ERROR) << "Listener with UUID " << uuid << " does not exist in map!";
+                } catch (std::exception &e) {
+                    LOG(ERROR) << "Msgpack conversion failed: " << e.what();
+                    LOG(ERROR) << "Offending buffer is " << unpacked.get();
+                }
             }
+        } else if (ret == -1) {
+            LOG(WARNING) << "Error polling socket: " << ret;
         }
-
-        // Then we process incoming qemu events and send them to the RDP client
-        while (!qemu_event_queue.isEmpty()) {
-            processIncomingMessage(qemu_event_queue.dequeue());
-        }
-
-        // finally, we block waiting on new qemu events to come to us, and put them on the queue when they do.
-        void *buf = nullptr;
-        VLOG(3) << "WORKER " << this << ": Blocking on socket receive now";
-        int nbytes = sock->recv(&buf, NN_MSG, 0); // blocking
-        VLOG(3) << "WORKER " << this << ": Received event from socket";
-
-        if (nbytes > 0) {
-            QueueItem *item = new QueueItem(buf, nbytes); // QueueItem is responsible for the buf from this point on.
-            qemu_event_queue.enqueue(item);
-        }
-    }
-
-    dbus_conn->unregister_object(registered_id);
-    VLOG(1) << "WORKER " << this << ": Main loop terminated.";
-}
-
-void RDPServerWorker::processIncomingMessage(const QueueItem *item)
-{
-    std::vector<uint32_t> rvec;
-
-    // deserialize message
-    msgpack::unpacked msg;
-
-    msgpack::unpack(&msg, (char *) item->item, (size_t) item->item_size);
-    VLOG(3) << "WORKER " << this << ": Unpacked object, now converting it to a vector";
-
-    try {
-        msgpack::object obj = msg.get();
-        obj.convert(&rvec);
-    } catch (std::exception& ex) {
-        LOG(ERROR) << "Msgpack conversion failed: " << ex.what();
-        LOG(ERROR) << "Offending buffer is " << msg.get();
-        return;
-    }
-
-    VLOG(2) << "WORKER " << this << ": Incoming vector is: " << rvec;
-    // now we filter by what type of message it is
-    if (rvec[0] == DISPLAY_UPDATE) {
-        VLOG(1) << "WORKER " << this << ": DisplayWorker processing display update event now";
-        l->processDisplayUpdate(rvec);
-    } else if (rvec[0] == DISPLAY_SWITCH) {
-        VLOG(2) << "WORKER " << this << ": DisplayWorker processing display switch event now";
-        l->processDisplaySwitch(rvec, this->vm_id);
-    } else if (rvec[0] == SHUTDOWN) {
-        VLOG(2) << "WORKER " << this << ": Shutdown event received!";
-        // TODO: process shutdown events
-    } else {
-        // what the hell have you sent me
-        LOG(WARNING) << "Invalid message type sent.";
-    }
-
-    // by deleting the item, we also free the buf
-    delete item;
-}
-
-void RDPServerWorker::on_method_call(const Glib::RefPtr<Gio::DBus::Connection> &,
-                                     const Glib::ustring &,
-                                     const Glib::ustring &,
-                                     const Glib::ustring &,
-                                     const Glib::ustring &method_name,
-                                     const Glib::VariantContainerBase &parameters,
-                                     const Glib::RefPtr<Gio::DBus::MethodInvocation> &invocation)
-{
-    // no methods for now, but this stub needs to be here
-}
-
-void RDPServerWorker::on_property_call(Glib::VariantBase& property,
-                      const Glib::RefPtr<Gio::DBus::Connection>&,
-                      const Glib::ustring&, // sender
-                      const Glib::ustring&, // object path
-                      const Glib::ustring&, // interface_name
-                      const Glib::ustring& property_name)
-{
-    if (property_name == "Port") {
-        property = Glib::Variant<uint16_t>::create(port);
     }
 }

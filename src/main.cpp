@@ -14,27 +14,16 @@
  * limitations under the License.
  */
 
-#include <iostream>
-#include <thread>
-#include <string>
-#include <csignal>
-
-#include <sys/types.h>
-
-#include <boost/program_options.hpp>
-#include <giomm-2.4/giomm.h>
-
 #include "common.h"
+#include <boost/program_options.hpp>
 #include "RDPServerWorker.h"
-#include "util/logging.h"
 
 namespace po = boost::program_options;
 po::variables_map vm;
 
 INITIALIZE_EASYLOGGINGPP
 
-std::list<RDPServerWorker *> worker_list;
-uint16_t port = 0;
+std::unique_ptr<RDPServerWorker> broker;
 
 namespace {
     static Glib::RefPtr<Gio::DBus::NodeInfo> introspection_data;
@@ -58,14 +47,9 @@ namespace {
 
 void handle_SIGINT(int signal)
 {
-    // send shutdown signals to all ServerWorkers
+    // send shutdown signal to RDPServerWorker
     LOG(INFO) << "SIGINT received, cleaning up";
-    if (worker_list.size() > 0) {
-        for (auto i = worker_list.begin(); i != worker_list.end(); ++i) {
-            delete *i;
-        }
-    }
-    exit(0);
+    broker->~RDPServerWorker();
 }
 
 // handles all method call invocations. Basically if you have more than one
@@ -81,53 +65,39 @@ static void on_method_call(const Glib::RefPtr<Gio::DBus::Connection>& conn,
     if (method_name == "Register") {
         Glib::Variant<int> id_variant;
         Glib::Variant<int> ver_variant;
-        Glib::Variant<Glib::ustring> uuid_variant;
+        Glib::Variant<std::string> uuid_variant;
+
         parameters.get_child(id_variant, 0);
         parameters.get_child(ver_variant, 1);
         parameters.get_child(uuid_variant, 2);
-        int id = id_variant.get();
+        int vm_id = id_variant.get();
         int ver = ver_variant.get();
-        Glib::ustring uuid = uuid_variant.get();
+        std::string uuid = uuid_variant.get();
 
         // TODO: flesh this code out, needs to be more comprehensive for when we bump protocol
         if (ver != 2) {
             invocation->return_value(
                     Glib::VariantContainerBase::create_tuple(
-                            Glib::Variant<std::string>::create("")
+                            Glib::Variant<Glib::ustring>::create("")
                     )
             );
             LOG(INFO) << "Client tried to connect using unsupported protocol version, ignoring";
             return;
         }
 
-        // TODO: make sure this uses the correct path
-        std::string suffix = "/rdpmux";
-        std::string tmp_dir_path = Glib::get_tmp_dir() + suffix;
-
-        // check for existence of tmp directory
-        if (opendir(tmp_dir_path.c_str()) == NULL) {
-            if (errno == ENOTDIR || errno == ENOENT) {
-                // create directory with 777 permissions
-                if (mkdir(tmp_dir_path.c_str(), S_IRWXU | S_IRWXG | S_IRWXO) < 0) {
-                    LOG(ERROR) << "Error creating tmp dir " << tmp_dir_path << " : " << strerror(errno);
-                    return;
-                }
-            } else {
-                LOG(ERROR) << "Error while testing for tmp directory existence: " << strerror(errno);
-                return;
-            }
+        if (!broker->RegisterNewVM(uuid, vm_id)) {
+            LOG(WARNING) << "VM Registration failed!";
+            invocation->return_value(
+                    Glib::VariantContainerBase::create_tuple(
+                            Glib::Variant<Glib::ustring>::create("")
+                    )
+            );
+            return;
         }
 
-        const Glib::ustring socket_path = Glib::ustring::compose("ipc://%1/%2.socket", tmp_dir_path, id);
-
-        RDPServerWorker *worker = new RDPServerWorker(socket_path, id, port++, uuid);
-        worker->setDBusConnection(conn);
-        worker_list.push_back(worker);
-        worker->start();
-
-        const auto response_variant = Glib::Variant<Glib::ustring>::create(socket_path);
+        Glib::ustring g_res = "ipc://@/tmp/rdpmux";
+        const auto response_variant = Glib::Variant<Glib::ustring>::create(g_res);
         Glib::VariantContainerBase response = Glib::VariantContainerBase::create_tuple(response_variant);
-
 
         invocation->return_value(response);
     }
@@ -166,6 +136,7 @@ void on_bus_acquired(const Glib::RefPtr<Gio::DBus::Connection> &connection, cons
         LOG(WARNING) << "DBus registration failed, bailing. Reason: " << ex.what();
         exit(129);
     }
+    broker->setDBusConnection(connection);
     LOG(INFO) << "RDPMux initialized successfully!";
     return;
 }
@@ -185,6 +156,11 @@ void process_options(const int argc, const char *argv[])
     po::basic_command_line_parser<char> parser(argc, argv);
     try {
         po::options_description desc("Usage");
+
+        // set up default path to be in world-rw tmp dir
+        std::string suffix = "/rdpmux/rdpmux.sock";
+        std::string tmp_dir_path = Glib::get_tmp_dir() + suffix;
+
         desc.add_options()
                 (
                         "help,h",
@@ -215,7 +191,6 @@ void process_options(const int argc, const char *argv[])
 
         po::notify(vm);
         std::string test_cert = vm["certificate-dir"].as<std::string>();
-        port = vm["port"].as<uint16_t>();
         LOG(INFO) << "Certificate path is " << test_cert;
     } catch (const std::exception &ex) {
         LOG(WARNING) << ex.what();
@@ -240,6 +215,29 @@ int main(int argc, const char* argv[])
         introspection_data = Gio::DBus::NodeInfo::create_for_xml(introspection_xml);
     } catch (const Glib::Error &ex) {
         LOG(FATAL) << "Unable to create introspection data: " << ex.what() << ".";
+        return 1;
+    }
+
+    auto port = vm["port"].as<uint16_t>();
+
+    // final check to make sure starting port is within bounds
+    if (port > 0 && port < 65535) {
+        if (port < 1024) {
+            LOG(WARNING) << "Port number is low (below 1024), may conflict with other system services!";
+        }
+        try {
+            broker = make_unique<RDPServerWorker>(port); // create broker
+        } catch (std::exception &e) {
+            LOG(FATAL) << "Error initializing socket: " << e.what();
+            return 1;
+        }
+    } else {
+        LOG(FATAL) << "Invalid port number " << port;
+        return 1;
+    }
+
+    if (!broker->Initialize()) {
+        LOG(FATAL) << "Could not initialize RDPServerWorker, exiting";
         return 1;
     }
 

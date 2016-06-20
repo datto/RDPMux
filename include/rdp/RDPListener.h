@@ -17,15 +17,15 @@
 #ifndef QEMU_RDP_RDPLISTENER_H
 #define QEMU_RDP_RDPLISTENER_H
 
-
+#include "common.h"
+#include <freerdp/freerdp.h>
 #include <freerdp/listener.h>
+#include <pixman.h>
+#include <msgpack/sbuffer.hpp>
 #include <winpr/winsock.h>
-#include <mutex>
-#include <glibmm/ustring.h>
-#include "RDPPeer.h"
-#include "nanomsg.h"
 
 class RDPPeer; // I'm very bad at organizing C++ code.
+class RDPServerWorker; // I continue to get worse at organizing C++ code.
 
 extern BOOL start_peerloop(freerdp_listener *instance, freerdp_peer *client);
 
@@ -41,9 +41,14 @@ public:
     /**
      * @brief Initializes the listener, given a nanomsg socket to communicate through.
      *
-     * @param sock The nanomsg socket to use for communication.
+     * @param uuid The UUID of the VM associated with this listener.
+     * @param vm_id The unique ID of the VM's framebuffer.
+     * @param port The port the listener should bind to.
+     * @param parent A pointer to the RDPServerWorker for (LIMITED) use // todo: not so limited
+     * @param conn Reference to the process's DBus connection for exposing the Listener object
      */
-    RDPListener(nn::socket *sock);
+    RDPListener(std::string uuid, int vm_id, uint16_t port, RDPServerWorker *parent,
+                Glib::RefPtr<Gio::DBus::Connection> conn);
     /**
      * @brief Safely cleans up the freerdp_listener struct and frees all WinPR objects.
      */
@@ -51,10 +56,24 @@ public:
 
     /**
      * @brief starts the listener subroutine and loops forever on incoming connections.
-     *
-     * @param port The port to listen on.
      */
-    void RunServer(uint16_t port);
+    void RunServer();
+
+    /**
+     * @brief Processes outgoing messages from the RDP client to the VM.
+     *
+     * @param sbuf serialized msgpack object containing update.
+     */
+    void processOutgoingMessage(std::vector<uint16_t> vec);
+
+    /**
+     * @brief Processes incoming messages from the VM.
+     *
+     * Serves as an entry point for incoming messages from the VM via the RDPServerWorker.
+     *
+     * @param vec Deserialized vector of uint32_ts comprising the message
+     */
+    void processIncomingMessage(std::vector<uint32_t> rvec);
 
     /**
      * @brief Processes display updates and sends them to peers.
@@ -81,7 +100,7 @@ public:
      * DISPLAY_SWITCH.
      * @param vm_id The ID of the VM.
      */
-    void processDisplaySwitch(std::vector<uint32_t> msg, int vm_id);
+    void processDisplaySwitch(std::vector<uint32_t> msg);
 
     /**
      * @brief Registers a peer with the RDPListener.
@@ -139,14 +158,36 @@ private:
     WSADATA wsadata;
 
     /**
-     * @brief The nanomsg socket used for communication with the VM.
+     * @brief dbus introspection xml
      */
-    nn::socket *sock;
+    static Glib::ustring introspection_xml;
 
     /**
-     * @brief The path to the nanomsg socket on the filesystem.
+     * dbus connection
      */
-    Glib::ustring path;
+    Glib::RefPtr<Gio::DBus::Connection> dbus_conn;
+
+    /**
+     * @brief Reference to the parent ServerWorker. NO GUARANTEES USE AT OWN RISK. //todo : guarantee
+     *
+     * @warning NEVER CALL DELETE ON THIS EVER
+     */
+    RDPServerWorker *parent;
+
+    /**
+     * @brief Port number to listen on.
+     */
+    uint16_t port;
+
+    /**
+     * @brief UUID of the VM associated with the listener.
+     */
+    std::string uuid;
+
+    /**
+     * @brief Unique ID of VM framebuffer.
+     */
+    int vm_id;
 
     /**
      * @brief Mutex guarding access to the peer list.
@@ -175,6 +216,28 @@ private:
 
     std::mutex stopMutex;
     bool stop;
+    guint registered_id = 0;
+
+    /**
+    * @brief Method called when a DBus method call is invoked.
+    */
+    void on_method_call(const Glib::RefPtr<Gio::DBus::Connection> &,
+                        const Glib::ustring &,
+                        const Glib::ustring &,
+                        const Glib::ustring &,
+                        const Glib::ustring &method_name,
+                        const Glib::VariantContainerBase &parameters,
+                        const Glib::RefPtr<Gio::DBus::MethodInvocation> &invocation);
+
+    /**
+     * @brief Method called when a DBus property is queried.
+     */
+    void on_property_call(Glib::VariantBase& property,
+                          const Glib::RefPtr<Gio::DBus::Connection>&,
+                          const Glib::ustring&,
+                          const Glib::ustring&,
+                          const Glib::ustring&,
+                          const Glib::ustring& property_name);
 };
 
 #endif //QEMU_RDP_RDPLISTENER_H

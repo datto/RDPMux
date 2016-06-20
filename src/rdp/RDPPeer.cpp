@@ -14,300 +14,300 @@
  * limitations under the License.
  */
 
-#include <new>
-#include <iostream>
-#include <tuple>
-#include <sstream>
-#include <cstring>
-#include <string>
-
 #include <boost/program_options.hpp>
 
-#include <msgpack.hpp>
-#include <rdp/DisplayBuffer.h>
-#include <malloc.h>
-
-#include "rdp/formats/DisplayBuffer_r8g8b8a8.h"
-#include "rdp/formats/DisplayBuffer_r8g8b8.h"
-#include "rdp/formats/DisplayBuffer_a8r8g8b8.h"
-
 #include "rdp/RDPPeer.h"
-#include "util/logging.h"
-#include "common.h"
+#include "rdp/RDPListener.h"
 
-#define RDP_SERVER_DEFAULT_HEIGHT 768
-#define RDP_SERVER_DEFAULT_WIDTH 1024
+#include <winpr/crt.h>
+#include <winpr/sysinfo.h>
 
 namespace po = boost::program_options;
 extern po::variables_map vm;
 
 /* Context activation functions */
-static BOOL peer_context_new(freerdp_peer *client, PeerContext *context)
+static BOOL peer_context_new(freerdp_peer* client, PeerContext* ctx)
 {
-    // creates the initial context object. Things which are typically hardcoded configuration variables are initialized
-    // here.
-    if (!(context->rfx_context = rfx_context_new(TRUE))) {
-        goto fail_rfx_context;
-    }
+	rdpSettings* settings = client->settings;
 
-    context->rfx_context->mode = RLGR3;
-    context->rfx_context->width = RDP_SERVER_DEFAULT_WIDTH;
-    context->rfx_context->height = RDP_SERVER_DEFAULT_HEIGHT;
-    rfx_context_set_pixel_format(context->rfx_context, RDP_PIXEL_FORMAT_R8G8B8A8);
+	settings->ColorDepth = 32;
+	settings->NSCodec = FALSE;
+	settings->RemoteFxCodec = TRUE;
+	settings->BitmapCacheV3Enabled = TRUE;
+	settings->SupportGraphicsPipeline = FALSE;
 
-    if (!(context->nsc_context = nsc_context_new())) {
-        goto fail_nsc_context;
-    }
-    nsc_context_set_pixel_format(context->nsc_context, RDP_PIXEL_FORMAT_R8G8B8A8);
+	settings->FrameMarkerCommandEnabled = TRUE;
+	settings->SurfaceFrameMarkerEnabled = TRUE;
 
-    if (!(context->s = Stream_New(NULL, 65536))) {
-        goto fail_stream_new;
-    }
+	settings->DrawAllowSkipAlpha = TRUE;
+	settings->DrawAllowColorSubsampling = TRUE;
+	settings->DrawAllowDynamicColorFidelity = TRUE;
 
-    context->icon_x = -1;
-    context->icon_y = -1;
+	settings->CompressionLevel = PACKET_COMPR_TYPE_RDP61;
 
-    context->vcm = WTSOpenServerA((LPSTR) client->context);
+	settings->SuppressOutput = TRUE;
+	settings->RefreshRect = TRUE;
 
-    if (!context->vcm || context->vcm == INVALID_HANDLE_VALUE) {
-        goto fail_open_server;
-    }
-    return TRUE;
+	settings->RdpSecurity = TRUE;
+	settings->TlsSecurity = TRUE;
+	settings->NlaSecurity = FALSE;
 
-fail_open_server:
-    context->vcm = NULL;
-    Stream_Free(context->s, TRUE);
-    context->s = NULL;
-fail_stream_new:
-    nsc_context_free(context->nsc_context);
-    context->nsc_context = NULL;
-fail_nsc_context:
-    rfx_context_free(context->rfx_context);
-    context->rfx_context = NULL;
-fail_rfx_context:
-    return FALSE;
+	settings->EncryptionLevel = ENCRYPTION_LEVEL_CLIENT_COMPATIBLE;
+
+	ctx->vcm = WTSOpenServerA((LPSTR) client->context);
+
+	if (!ctx->vcm || ctx->vcm == INVALID_HANDLE_VALUE) {
+		return FALSE;
+	}
+
+	ctx->encoder = rdpmux_encoder_new(settings);
+
+	if (!ctx->encoder)
+		return FALSE;
+
+	region16_init(&ctx->invalidRegion);
+
+	InitializeCriticalSectionAndSpinCount(&(ctx->lock), 4000);
+
+	ctx->stopEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
+
+	ctx->minFrameRate = 1;
+	ctx->maxFrameRate = 30;
+	ctx->frameRate = ctx->maxFrameRate;
+
+	return TRUE;
 }
 
-static void peer_context_free(freerdp_peer *client, PeerContext *context)
+static void peer_context_free(freerdp_peer* client, PeerContext* ctx)
 {
-    if (context) {
-        if (context->debug_channel_thread) {
-            SetEvent(context->stopEvent);
-            WaitForSingleObject(context->debug_channel_thread, INFINITE);
-            CloseHandle(context->debug_channel_thread);
-        }
+	if (!ctx)
+		return;
 
-        Stream_Free(context->s, TRUE);
-        free(context->icon_data);
-        free(context->bg_data);
+	rdpmux_encoder_free(ctx->encoder);
 
-        if (context->debug_channel) {
-            WTSVirtualChannelClose(context->debug_channel);
-        }
-        if (context->audin) {
-            audin_server_context_free(context->audin);
-        }
+	region16_uninit(&ctx->invalidRegion);
 
-        if (context->rdpsound) {
-            rdpsnd_server_context_free(context->rdpsound);
-        }
+	WTSCloseServer((HANDLE) ctx->vcm);
 
-        WTSCloseServer((HANDLE) context->vcm);
-    }
+	if (ctx->surface)
+	{
+		rdpmux_surface_free(ctx->surface);
+		ctx->surface = NULL;
+	}
+
+	DeleteCriticalSection(&(ctx->lock));
+
+	CloseHandle(ctx->stopEvent);
+}
+
+static BOOL peer_capabilities(freerdp_peer *client)
+{
+	return TRUE;
 }
 
 static BOOL peer_post_connect(freerdp_peer *client)
 {
-    PeerContext *context = (PeerContext*) client->context;
+	UINT32 ColorDepth;
+	UINT32 DesktopWidth;
+	UINT32 DesktopHeight;
+	rdpSettings* settings = client->settings;
+	PeerContext* ctx = (PeerContext*) client->context;
+	RDPListener* listener = ctx->peerObj->GetListener();
 
-    context->rfx_context->width = client->settings->DesktopWidth;
-    context->rfx_context->height = client->settings->DesktopHeight;
+	DesktopWidth = listener->GetWidth();
+	DesktopHeight = listener->GetHeight();
+	ColorDepth = 32;
 
-    client->update->DesktopResize(client->update->context);
+	if (settings->ColorDepth == 24)
+		settings->ColorDepth = 16; /* disable 24bpp */
 
-    if (WTSVirtualChannelManagerIsChannelJoined(context->vcm, "rdpsnd")) {
-        VLOG(1) << "PEER: Sound stuff is still a work in progress.";
-    }
-    return TRUE;
+	if (settings->MultifragMaxRequestSize < 0x3F0000)
+		settings->NSCodec = FALSE; /* NSCodec compressor does not support fragmentation yet */
+
+	fprintf(stderr, "Client requested desktop: %dx%dx%d\n",
+			settings->DesktopWidth, settings->DesktopHeight, settings->ColorDepth);
+
+	if ((DesktopWidth != settings->DesktopWidth) || (DesktopHeight != settings->DesktopHeight)
+			|| (ColorDepth != settings->ColorDepth))
+	{
+		fprintf(stderr, "Resizing desktop to %dx%dx%d\n", DesktopWidth, DesktopHeight, ColorDepth);
+
+		settings->DesktopWidth = DesktopWidth;
+		settings->DesktopHeight = DesktopHeight;
+		settings->ColorDepth = ColorDepth;
+
+		client->update->DesktopResize(client->update->context);
+	}
+
+	ctx->encoder->frameAck = settings->SurfaceFrameMarkerEnabled;
+
+	return TRUE;
 }
 
 static BOOL peer_activate(freerdp_peer *client)
 {
-    PeerContext *context = (PeerContext*) client->context;
+	PeerContext* ctx = (PeerContext*) client->context;
+	rdpMuxEncoder* encoder = ctx->encoder;
+	rdpSettings* settings = client->settings;
+	RDPListener* listener = ctx->peerObj->GetListener();
 
-    auto DesktopWidth = context->peerObj->GetSurfaceWidth();
-    auto DesktopHeight = context->peerObj->GetSurfaceHeight();
+	fprintf(stderr, "PeerActivate\n");
 
-    rfx_context_reset(context->rfx_context);
-    context->activated = TRUE;
+	if (settings->ClientDir && (strcmp(settings->ClientDir, "librdp") == 0))
+	{
+		/* Hack for Mac/iOS/Android Microsoft RDP clients */
 
-    client->settings->CompressionLevel = PACKET_COMPR_TYPE_RDP61;
+		settings->RemoteFxCodec = FALSE;
 
-    VLOG(3) << std::dec << "PEER: client->settings->Desktop{Width,Height}: " << DesktopWidth << " " << DesktopHeight;
-    return TRUE;
+		settings->NSCodec = FALSE;
+		settings->NSCodecAllowSubsampling = FALSE;
+
+		settings->SurfaceFrameMarkerEnabled = FALSE;
+	}
+
+	auto DesktopWidth = listener->GetWidth();
+	auto DesktopHeight = listener->GetHeight();
+
+	ctx->activated = TRUE;
+
+	VLOG(3) << std::dec << "PEER: client->settings->Desktop{Width,Height}: " << DesktopWidth << " " << DesktopHeight;
+
+	ctx->peerObj->FullDisplayUpdate(DesktopWidth, DesktopHeight, ctx->peerObj->GetListener()->GetFormat());
+
+	return TRUE;
 }
 
 /* Peer callback handlers */
 
 static BOOL peer_keyboard_event(rdpInput *input, uint16_t flags, uint16_t code)
 {
-    PeerContext *context = (PeerContext *) input->context->peer->context;
+	PeerContext* context = (PeerContext*) input->context->peer->context;
 
-    RDPPeer *peer = context->peerObj;
-    peer->ProcessKeyboardMsg(flags, code);
-    return TRUE;
+	RDPPeer* peer = context->peerObj;
+	peer->ProcessKeyboardMsg(flags, code);
+
+	return TRUE;
 }
 
 static BOOL peer_mouse_event(rdpInput *input, uint16_t flags, uint16_t x, uint16_t y)
 {
-    PeerContext *context = (PeerContext *) input->context->peer->context;
+	PeerContext* context = (PeerContext *) input->context->peer->context;
 
-    RDPPeer *peer = context->peerObj;
-    peer->ProcessMouseMsg(flags, x, y);
+	RDPPeer* peer = context->peerObj;
+	peer->ProcessMouseMsg(flags, x, y);
 
-    return TRUE;
+	return TRUE;
 }
 
-static BOOL peer_synchronize_event(rdpInput *input, uint32_t flags)
+static BOOL peer_synchronize_event(rdpInput* input, uint32_t flags)
 {
-    VLOG(2) << "PEER: Client sent a synchronize event(0x" << std::hex << flags << ")" << std::dec;
-    PeerContext *ctx = (PeerContext *) input->context;
-    ctx->peerObj->FullDisplayUpdate(ctx->peerObj->GetListener()->GetFormat());
-    return TRUE;
+	return TRUE;
 }
 
-static BOOL peer_refresh_rect(rdpContext *context, uint8_t count, RECTANGLE_16 *areas)
+static BOOL peer_refresh_rect(rdpContext* context, uint8_t count, RECTANGLE_16* areas)
 {
-    PeerContext *ctx = (PeerContext *) context;
-    for (size_t i = 0; i < count; i++) {
-        VLOG(2) << "PEER: Client requested to refresh [(" << areas[i].left << ", " << areas[i].top << "), " << areas[i].right << ", " << areas[i].bottom << "]";
-        uint16_t width = areas[i].right - areas[i].left;
-        uint16_t height = areas[i].bottom - areas[i].top;
+	RECTANGLE_16 invalidRect;
+	PeerContext* ctx = (PeerContext*) context;
 
-        if (width > ctx->peerObj->GetSurfaceWidth() || height > ctx->peerObj->GetSurfaceHeight())
-            return TRUE;
+	for (size_t i = 0; i < count; i++)
+	{
+		VLOG(2) << "PEER: Client requested to refresh [(" << areas[i].left << ", " << areas[i].top << "), " << areas[i].right << ", " << areas[i].bottom << "]";
 
-        ctx->peerObj->PartialDisplayUpdate(areas[i].left, areas[i].top, areas[i].right - areas[i].left, areas[i].bottom - areas[i].top);
-    }
-    return TRUE;
+		invalidRect.left = areas[i].left;
+		invalidRect.top = areas[i].top;
+		invalidRect.right = areas[i].right;
+		invalidRect.bottom = areas[i].bottom;
+
+		EnterCriticalSection(&ctx->lock);
+
+		region16_union_rect(&ctx->invalidRegion, &ctx->invalidRegion, &invalidRect);
+
+		LeaveCriticalSection(&ctx->lock);
+	}
+
+	return TRUE;
 }
 
 static BOOL peer_suppress_output(rdpContext *context, uint8_t allow, RECTANGLE_16 *areas)
 {
-    if (allow > 0) {
-        VLOG(2) << "PEER: Client requested to restore output";
-    } else {
-        VLOG(2) << "PEER: Client requsted to suppress output";
-    }
-    return TRUE;
+	if (allow > 0) {
+		VLOG(2) << "PEER: Client requested to restore output";
+	} else {
+		VLOG(2) << "PEER: Client requested to suppress output";
+	}
+
+	return TRUE;
 }
 
-/* Region update helpers */
-
-static void begin_new_frame(rdpUpdate *update, PeerContext *context)
+BOOL peer_surface_frame_acknowledge(rdpContext* context, UINT32 frameId)
 {
-    SURFACE_FRAME_MARKER *fm = &update->surface_frame_marker;
-    fm->frameAction = SURFACECMD_FRAMEACTION_BEGIN;
-    fm->frameId = context->frame_id;
-    update->SurfaceFrameMarker(update->context, fm);
-}
+	PeerContext* ctx = (PeerContext*) context;
 
-static void end_frame(freerdp_peer *client)
-{
-    rdpUpdate *update = client->update;
-    SURFACE_FRAME_MARKER *fm = &update->surface_frame_marker;
-    PeerContext *context = (PeerContext *) client->context;
+	ctx->encoder->lastAckframeId = frameId;
 
-    fm->frameAction = SURFACECMD_FRAMEACTION_END;
-    fm->frameId = context->frame_id;
-    update->SurfaceFrameMarker(update->context, fm);
-    context->frame_id++;
-}
-
-static wStream *wstream_init(PeerContext *context)
-{
-    Stream_Clear(context->s);
-    Stream_SetPosition(context->s, 0);
-    return context->s;
+	return TRUE;
 }
 
 /* Class methods */
 
 size_t RDPPeer::GetSurfaceWidth()
 {
-    return listener->GetWidth();
+	return listener->GetWidth();
 }
 
 size_t RDPPeer::GetSurfaceHeight()
 {
-    return listener->GetHeight();
+	return listener->GetHeight();
 }
 
 RDPListener *RDPPeer::GetListener()
 {
-    return listener;
+	return listener;
 }
 
-RDPPeer::RDPPeer(std::tuple<freerdp_peer*, nn::socket*, RDPListener *> tuple)
+RDPPeer::RDPPeer(freerdp_peer *client, RDPListener *listener) : client(client),
+                                                                shm_buffer_region(listener->shm_buffer),
+                                                                listener(listener)
 {
-    freerdp_peer *client = std::get<0>(tuple);
-    RDPListener *listener = std::get<2>(tuple);
+	client->ContextSize = sizeof(PeerContext);
+	client->ContextNew = (psPeerContextNew) peer_context_new;
+	client->ContextFree = (psPeerContextFree) peer_context_free;
 
-    this->tuple = tuple;
-    this->client = client;
-    this->listener = listener;
-    this->surface = nullptr;
-    this->shm_buffer_region = listener->shm_buffer;
+	if (!freerdp_peer_context_new(client)) {
+		freerdp_peer_free(client);
+		LOG(WARNING) << "Could not allocate peer context!";
+		throw std::bad_alloc();
+	}
 
+	// dynamic context initialization functions.
+	PeerContext *context = (PeerContext *) client->context;
+	context->peerObj = this;
 
-    client->ContextSize = sizeof(PeerContext);
-    client->ContextNew = (psPeerContextNew) peer_context_new;
-    client->ContextFree = (psPeerContextFree) peer_context_free;
+	client->Capabilities = peer_capabilities;
+	client->PostConnect = peer_post_connect;
+	client->Activate = peer_activate;
+	client->input->SynchronizeEvent = peer_synchronize_event;
+	client->input->KeyboardEvent = peer_keyboard_event;
+	client->input->MouseEvent = peer_mouse_event;
 
-    if (!freerdp_peer_context_new(client)) {
-        freerdp_peer_free(client);
-        LOG(WARNING) << "Could not allocate peer context!";
-        throw std::bad_alloc();
-    }
+	client->update->RefreshRect = peer_refresh_rect;
+	client->update->SuppressOutput = peer_suppress_output;
+	client->update->SurfaceFrameAcknowledge = peer_surface_frame_acknowledge;
 
-    // dynamic context initialization functions.
-    PeerContext *context = (PeerContext *) client->context;
-    context->peerObj = this;
+	std::string cert_dir = vm["certificate-dir"].as<std::string>();
+	if (cert_dir.compare("") == 0) {
+		LOG(FATAL) << "Certificate dir option was not passed properly, aborting";
+		exit(12);
+	}
 
-    client->PostConnect = peer_post_connect;
-    client->Activate = peer_activate;
-    client->input->SynchronizeEvent = peer_synchronize_event;
-    client->input->KeyboardEvent = peer_keyboard_event;
-    client->input->MouseEvent = peer_mouse_event;
-
-    client->update->RefreshRect = peer_refresh_rect;
-    client->update->SuppressOutput = peer_suppress_output;
-
-    std::string cert_dir = vm["certificate-dir"].as<std::string>();
-    if (cert_dir.compare("") == 0) {
-        LOG(FATAL) << "Certificate dir option was not passed properly, aborting";
-        exit(12);
-    }
-
-    std::string key_path = cert_dir + "/server.key";
-    std::string crt_path = cert_dir + "/server.crt";
-    VLOG(3) << "key path is " << key_path;
-    VLOG(3) << "crt path is " << crt_path;
-    // TODO: set these dynamically, probably via command line options or a config file or something
-    client->settings->CertificateFile = _strdup(crt_path.c_str());
-    client->settings->PrivateKeyFile = _strdup(key_path.c_str());
-    client->settings->RdpKeyFile = _strdup(key_path.c_str());
-
-    client->settings->RdpSecurity = TRUE;
-    client->settings->TlsSecurity = TRUE;
-    client->settings->NlaSecurity = FALSE;
-    client->settings->EncryptionLevel = ENCRYPTION_LEVEL_CLIENT_COMPATIBLE;
-    client->settings->RemoteFxCodec = TRUE;
-    client->settings->ColorDepth = 32;
-    client->settings->SuppressOutput = TRUE;
-    client->settings->RefreshRect = TRUE;
-
-    client->settings->MultifragMaxRequestSize = 0xFFFFFFFF;
+	std::string key_path = cert_dir + "/server.key";
+	std::string crt_path = cert_dir + "/server.crt";
+	VLOG(3) << "key path is " << key_path;
+	VLOG(3) << "crt path is " << crt_path;
+	// TODO: set these dynamically, probably via command line options or a config file or something
+	client->settings->CertificateFile = _strdup(crt_path.c_str());
+	client->settings->PrivateKeyFile = _strdup(key_path.c_str());
+	client->settings->RdpKeyFile = _strdup(key_path.c_str());
 }
 
 RDPPeer::~RDPPeer()
@@ -317,249 +317,727 @@ RDPPeer::~RDPPeer()
     LOG(INFO) << "PEER " << this << ": DESTRUCTING ACHTUNG WARNING WARNING WARNING WARNING WARNING WARNING WARNING WARNING WARNING WARNING WARNING WARNING WARNING WARNING WARNING WARNING WARNING WARNING";
 }
 
-void RDPPeer::RunThread(freerdp_peer *client)
+void RDPPeer::RunThread(freerdp_peer* client)
 {
-    HANDLE handles[32];
-    DWORD count, status;
-    PeerContext *context = (PeerContext *) client->context;
+	int status;
+	DWORD nCount;
+	UINT64 currTime;
+	DWORD dwTimeout;
+	DWORD dwInterval;
+	UINT64 frameTime;
+	DWORD waitStatus;
+	HANDLE events[64];
+	PeerContext* ctx = (PeerContext*) client->context;
 
-    this->listener->registerPeer(this);
+	this->listener->registerPeer(this);
 
-    while (1) {
-        count = 0;
-        handles[count++] = client->GetEventHandle(client);
-        handles[count++] = WTSVirtualChannelManagerGetEventHandle(context->vcm);
+	dwInterval = 1000 / ctx->frameRate;
+	frameTime = GetTickCount64() + dwInterval;
 
-        status = WaitForMultipleObjects(count, handles, FALSE, INFINITE);
+	while (1)
+	{
+		nCount = 0;
+		events[nCount++] = ctx->stopEvent;
+		events[nCount++] = client->GetEventHandle(client);
+		events[nCount++] = WTSVirtualChannelManagerGetEventHandle(ctx->vcm);
 
-        if (status == WAIT_FAILED) {
-            VLOG(1) << "PEER: Wait failed.";
-            break;
-        }
+		currTime = GetTickCount64();
+		dwTimeout = (DWORD) ((currTime > frameTime) ? 1 : frameTime - currTime);
 
-        if (client->CheckFileDescriptor(client) != TRUE) {
-            VLOG(1) << "PEER: Client closed connection.";
-            break;
-        }
+		dwTimeout = INFINITE;
+		waitStatus = WaitForMultipleObjects(nCount, events, FALSE, dwTimeout);
 
-        if (WTSVirtualChannelManagerCheckFileDescriptor(context->vcm) != TRUE) {
-            VLOG(1) << "PEER: Virtual channel connection closed.";
-            break;
-        }
-    }
+		if (waitStatus == WAIT_FAILED) {
+			VLOG(1) << "PEER: Wait failed.";
+			break;
+		}
 
-    this->listener->unregisterPeer(this);
+		if (WaitForSingleObject(ctx->stopEvent, 0) == WAIT_OBJECT_0)
+			break;
+
+		if (client->CheckFileDescriptor(client) != TRUE) {
+			VLOG(1) << "PEER: Client closed connection.";
+			break;
+		}
+
+		if (WTSVirtualChannelManagerCheckFileDescriptor(ctx->vcm) != TRUE) {
+			VLOG(1) << "PEER: Virtual channel connection closed.";
+			break;
+		}
+
+#if 0
+		if (GetTickCount64() >= frameTime)
+		{
+			if (ctx->activated)
+			{
+				/* send update here */
+
+				status = SendSurfaceUpdate(0, 0, 0, 0);
+
+				if (status <= 0)
+				{
+					SetEvent(ctx->stopEvent);
+					break;
+				}
+			}
+
+			dwInterval = 1000 / ctx->frameRate;
+			frameTime += dwInterval;
+		}
+#endif
+	}
+
+	this->listener->unregisterPeer(this);
 }
 
 void *RDPPeer::PeerThread(void *arg)
 {
-    auto tuple = (std::tuple<freerdp_peer*, nn::socket*, RDPListener *> *) arg;
+	auto tuple = (std::tuple<freerdp_peer*, RDPListener *> *) arg;
+	auto tuple_obj = *tuple;
 
-    auto tuple_obj = *tuple;
+	freerdp_peer *client = std::get<0>(tuple_obj);
+	RDPListener *listener = std::get<1>(tuple_obj);
 
-    freerdp_peer *client = std::get<0>(tuple_obj);
+	auto peer = make_unique<RDPPeer>(client, listener);
 
-    std::unique_ptr<RDPPeer> peer(new RDPPeer(*tuple));
+	client->Initialize(client);
 
-    client->Initialize(client);
+	peer->RunThread(client);
 
-    peer->RunThread(client);
-
-    client->Disconnect(client);
-    VLOG(1) << "PEER: Client disconnected.";
-
-    return NULL;
+	client->Disconnect(client);
+	VLOG(1) << "PEER: Client disconnected.";
+	delete tuple; // should be safe to do, and helps it not leak
+	return NULL;
 }
 
 void RDPPeer::ProcessMouseMsg(uint16_t flags, uint16_t x, uint16_t y)
 {
-    std::vector<uint16_t> vec;
-    vec.push_back(MOUSE);
-    vec.push_back(x);
-    vec.push_back(y);
-    vec.push_back(flags);
+	std::vector<uint16_t> vec;
+	vec.push_back(MOUSE);
+	vec.push_back(x);
+	vec.push_back(y);
+	vec.push_back(flags);
 
-    msgpack::sbuffer sbuf;
-    msgpack::pack(sbuf, vec);
-
-    nn::socket *sock = std::get<1>(tuple);
-    VLOG(2) << "PEER: Now sending RDP mouse client message to the QEMU VM";
-    sock->send(sbuf.data(), sbuf.size(), 0);
+	//VLOG(2) << "PEER: Now sending RDP mouse client message to the QEMU VM";
+	listener->processOutgoingMessage(vec);
 }
 
 void RDPPeer::ProcessKeyboardMsg(uint16_t flags, uint16_t keycode)
 {
-    std::vector<uint16_t> vec;
-    vec.push_back(KEYBOARD);
-    vec.push_back(keycode);
-    vec.push_back(flags);
+	std::vector<uint16_t> vec;
+	vec.push_back(KEYBOARD);
+	vec.push_back(keycode);
+	vec.push_back(flags);
 
-    msgpack::sbuffer sbuf;
-    msgpack::pack(sbuf, vec);
-
-    nn::socket *sock = std::get<1>(tuple);
-    VLOG(2) << "PEER: Now sending RDP keyboard client message to the QEMU VM";
-    sock->send(sbuf.data(), sbuf.size(), 0);
+	VLOG(2) << "PEER: Now sending RDP keyboard client message to the QEMU VM";
+	listener->processOutgoingMessage(vec);
 }
 
 void RDPPeer::PartialDisplayUpdate(uint32_t x_coord, uint32_t y_coord, uint32_t width, uint32_t height)
 {
-    UpdateRegion(x_coord, y_coord, width, height, FALSE);
+	if (0)
+	{
+		RECTANGLE_16 invalidRect;
+		PeerContext* ctx = (PeerContext*) client->context;
+
+		invalidRect.left = (UINT16) x_coord;
+		invalidRect.top = (UINT16) y_coord;
+		invalidRect.right = (UINT16) (x_coord + width);
+		invalidRect.bottom = (UINT16) (y_coord + height);
+
+		EnterCriticalSection(&ctx->lock);
+
+		region16_union_rect(&ctx->invalidRegion, &ctx->invalidRegion, &invalidRect);
+
+		LeaveCriticalSection(&ctx->lock);
+	}
+	else
+	{
+		SendSurfaceUpdate((int) x_coord, (int) y_coord, (int) width, (int) height);
+	}
 }
 
 PIXEL_FORMAT RDPPeer::GetPixelFormatForPixmanFormat(pixman_format_code_t f)
 {
-    switch(f) {
-        case PIXMAN_r8g8b8a8:
-        case PIXMAN_r8g8b8x8:
-            return PIXEL_FORMAT_r8g8b8a8;
-        case PIXMAN_a8r8g8b8:
-        case PIXMAN_x8r8g8b8:
-            return PIXEL_FORMAT_r8g8b8a8;
-        case PIXMAN_r8g8b8:
-            return PIXEL_FORMAT_r8g8b8;
-        case PIXMAN_b8g8r8:
-            return PIXEL_FORMAT_b8g8r8;
-        case PIXMAN_r5g6b5:
-        default:
-            throw new std::invalid_argument("Pixel format not supported");
-    }
+	switch (f)
+	{
+		case PIXMAN_r8g8b8a8:
+		case PIXMAN_r8g8b8x8:
+			return PIXEL_FORMAT_r8g8b8a8;
+		case PIXMAN_a8r8g8b8:
+		case PIXMAN_x8r8g8b8:
+			return PIXEL_FORMAT_r8g8b8a8;
+		case PIXMAN_r8g8b8:
+			return PIXEL_FORMAT_r8g8b8;
+		case PIXMAN_b8g8r8:
+			return PIXEL_FORMAT_b8g8r8;
+		case PIXMAN_r5g6b5:
+		case PIXMAN_x1r5g5b5:
+		default:
+			return PIXEL_FORMAT_INVALID;
+	}
 }
 
-void RDPPeer::CreateSurface(PIXEL_FORMAT r)
+void RDPPeer::CreateSurface(int width, int height, PIXEL_FORMAT r)
 {
-    PeerContext *context = (PeerContext *) client->context;
+	PeerContext* ctx = (PeerContext*) client->context;
 
-    switch(r) {
-        case PIXEL_FORMAT_r8g8b8a8:
-            VLOG(2) << "PEER: Launching R8G8B8A8 Displaybuffer with dimensions " << buf_width << "x" << buf_height;
-            surface = new DisplayBuffer_r8g8b8a8(buf_width, buf_height, shm_buffer_region);
-            rfx_context_set_pixel_format(context->rfx_context, RDP_PIXEL_FORMAT_R8G8B8A8);
-            break;
-        case PIXEL_FORMAT_r8g8b8:
-            VLOG(2) << "PEER: Launching R8G8B8 Displaybuffer with dimensions " << buf_width << "x" << buf_height;
-            surface = new DisplayBuffer_r8g8b8(buf_width, buf_height, shm_buffer_region);
-            // TODO: Ubuntu is a goddamn liar and I don't know what else to do about it.
-            rfx_context_set_pixel_format(context->rfx_context, RDP_PIXEL_FORMAT_B8G8R8);
-            break;
-        case PIXEL_FORMAT_b8g8r8:
-            VLOG(2) << "PEER: Launching R8G8B8 Displaybuffer to deal with BGR data with dimensions " << buf_width << "x" << buf_height;
-            surface = new DisplayBuffer_r8g8b8(buf_width, buf_height, shm_buffer_region);
-            rfx_context_set_pixel_format(context->rfx_context, RDP_PIXEL_FORMAT_B8G8R8);
-            break;
-        case PIXEL_FORMAT_a8r8g8b8:
-            VLOG(2) << "PEER: Launching A8R8G8B8 Displaybuffer with dimensions " << buf_width << "x" << buf_height;
-            surface = new DisplayBuffer_a8r8g8b8(buf_width, buf_height, shm_buffer_region);
-            rfx_context_set_pixel_format(context->rfx_context, RDP_PIXEL_FORMAT_R8G8B8A8);
-        default:
-            LOG(ERROR) << "UNKNOWN PIXEL FORMAT ERROR ERROR THIS SHOULD NEVER HAPPEN ERROR";
-            break;
-    }
+	buf_width = (size_t) width;
+	buf_height = (size_t) height;
+
+	fprintf(stderr, "CreateSurface: %dx%d\n", (int) buf_width, (int) buf_height);
+
+	switch (r)
+	{
+		case PIXEL_FORMAT_r8g8b8a8:
+			VLOG(2) << "PEER: Launching R8G8B8A8 Displaybuffer with dimensions " << buf_width << "x" << buf_height;
+			ctx->sourceBpp = 4;
+			ctx->sourceFormat = PIXEL_FORMAT_XBGR32;
+			ctx->encodeFormat = PIXEL_FORMAT_XBGR32;
+			break;
+
+		case PIXEL_FORMAT_a8r8g8b8:
+			VLOG(2) << "PEER: Launching A8R8G8B8 Displaybuffer with dimensions " << buf_width << "x" << buf_height;
+			ctx->sourceBpp = 4;
+			ctx->sourceFormat = PIXEL_FORMAT_XRGB32;
+			ctx->encodeFormat = PIXEL_FORMAT_XRGB32;
+			break;
+
+		case PIXEL_FORMAT_r8g8b8:
+			VLOG(2) << "PEER: Launching R8G8B8 Displaybuffer with dimensions " << buf_width << "x" << buf_height;
+			ctx->sourceBpp = 3;
+			ctx->sourceFormat = PIXEL_FORMAT_BGR24;
+			ctx->encodeFormat = PIXEL_FORMAT_XRGB32;
+			break;
+
+		case PIXEL_FORMAT_b8g8r8:
+			VLOG(2) << "PEER: Launching R8G8B8 Displaybuffer to deal with BGR data with dimensions " << buf_width << "x" << buf_height;
+			ctx->sourceBpp = 3;
+			ctx->sourceFormat = PIXEL_FORMAT_RGB24;
+			ctx->encodeFormat = PIXEL_FORMAT_XRGB32;
+			break;
+
+		default:
+			LOG(ERROR) << "UNKNOWN PIXEL FORMAT ERROR ERROR THIS SHOULD NEVER HAPPEN ERROR";
+			break;
+	}
+
+	if (ctx->surface)
+	{
+		rdpmux_surface_free(ctx->surface);
+		ctx->surface = NULL;
+	}
+
+	ctx->surface = rdpmux_surface_new(0, 0, buf_width, buf_height);
+
+	rdpmux_encoder_set_pixel_format(ctx->encoder, ctx->encodeFormat);
+	rdpmux_encoder_reset(ctx->encoder, buf_width, buf_height);
 }
 
-void RDPPeer::FullDisplayUpdate(pixman_format_code_t f)
+void RDPPeer::FullDisplayUpdate(uint32_t displayWidth, uint32_t displayHeight, pixman_format_code_t f)
 {
-    PIXEL_FORMAT r;
-    buf_width = listener->GetWidth();
-    buf_height = listener->GetHeight();
+	RECTANGLE_16 invalidRect;
+	PIXEL_FORMAT displayFormat;
+	PeerContext* ctx = (PeerContext*) client->context;
+	rdpSettings* settings = client->settings;
 
-    try {
-        r = GetPixelFormatForPixmanFormat(f);
-        if (r < 1) {
-            LOG(WARNING) << "What is the point of exceptions if they never get caught?";
-        }
-    } catch (std::invalid_argument &e) {
-        // TODO: notify the outside somehow that we have stuff to implement
-        VLOG(3) << "PEER: Unknown pixel format received.";
-        return;
-    }
+	fprintf(stderr, "FullDisplayUpdate: %dx%d\n", displayWidth, displayHeight);
 
-    VLOG(3) << "PEER " << this << ": Attempting to take lock on surface to recreate";
-    {
-        std::lock_guard<std::mutex> lock(surface_lock);
-        VLOG(3) << "PEER " << this << ": Locked surface to recreate";
-        delete surface;
-        CreateSurface(r);
-    }
-    VLOG(3) << "PEER " << this << ": Recreated display surface object; lock released";
+	displayFormat = GetPixelFormatForPixmanFormat(f);
 
-    UpdateRegion(0, 0, buf_width, buf_height, TRUE);
+	if (displayFormat == PIXEL_FORMAT_INVALID) {
+		LOG(WARNING) << "Invalid pixel format received!";
+		return;
+	}
+
+	if (!ctx->surface || (displayWidth != settings->DesktopWidth) || (displayHeight != settings->DesktopHeight))
+	{
+		buf_width = displayWidth;
+		buf_height = displayHeight;
+		buf_format = displayFormat;
+
+		VLOG(3) << "PEER " << this << ": Attempting to take lock on surface to recreate";
+		{
+			std::lock_guard<std::mutex> lock(surface_lock);
+			VLOG(3) << "PEER " << this << ": Locked surface to recreate";
+			CreateSurface(buf_width, buf_height, displayFormat);
+		}
+		VLOG(3) << "PEER " << this << ": Recreated display surface object; lock released";
+
+		if ((displayWidth != settings->DesktopWidth) || (displayHeight != settings->DesktopHeight))
+		{
+			settings->DesktopWidth = displayWidth;
+			settings->DesktopHeight = displayHeight;
+
+			client->update->DesktopResize(client->update->context);
+
+			ctx->activated = FALSE;
+		}
+	}
+
+	invalidRect.left = 0;
+	invalidRect.top = 0;
+	invalidRect.right = displayWidth;
+	invalidRect.bottom = displayHeight;
+
+	EnterCriticalSection(&ctx->lock);
+
+	region16_union_rect(&ctx->invalidRegion, &ctx->invalidRegion, &invalidRect);
+
+	LeaveCriticalSection(&ctx->lock);
 }
 
-void RDPPeer::UpdateRegion(uint32_t x, uint32_t y, uint32_t w, uint32_t h, BOOL fullRefresh)
+int RDPPeer::SendSurfaceBits(int nXSrc, int nYSrc, int nWidth, int nHeight)
 {
-    rdpUpdate *update = client->update;
-    SURFACE_BITS_COMMAND *cmd = &update->surface_bits_command;
-    PeerContext *context = (PeerContext *) client->context;
-    wStream *s = nullptr;
-    int scanline = 0;
-    uint8_t *dirty;
+	int i;
+	BOOL first;
+	BOOL last;
+	wStream* s;
+	int nSrcStep;
+	BYTE* pSrcData;
+	int numMessages;
+	UINT32 frameId = 0;
+	rdpUpdate* update;
+	rdpContext* context;
+	rdpSettings* settings;
+	rdpMuxEncoder* encoder;
+	rdpMuxSurface* surface;
+	SURFACE_BITS_COMMAND cmd;
+	PeerContext* ctx = (PeerContext*) client->context;
 
-    if (!context->activated) {
-        VLOG(2) << "PEER: Context isn't activated, skipping";
-        return;
-    }
-    if (surface == nullptr || surface->isDestructed()) {
-        VLOG(3) << "PEER: Surface has been destructed, skipping update";
-        return;
-    }
+	context = (rdpContext*) client->context;
+	update = context->update;
+	settings = context->settings;
 
-    VLOG(2) << std::dec << "PEER: Now updating region [(" << (int) x << ", " << (int) y << ") " << (int) w << "x" << (int) h << "], " << (fullRefresh ? "FULL REFRESH" : "PARTIAL REFRESH");
+	encoder = ctx->encoder;
+	surface = ctx->surface;
 
-    // create update metadata struct
-    cmd->bpp = 32;
-    cmd->destLeft = 0;
-    cmd->destTop = 0;
-    cmd->destBottom = buf_height;
-    cmd->destRight = buf_width;
-    cmd->width = buf_width;
-    cmd->height = buf_height;
+	freerdp_image_copy(surface->data, ctx->encodeFormat, surface->scanline, nXSrc, nYSrc,
+		nWidth, nHeight, (BYTE*) shm_buffer_region, ctx->sourceFormat, buf_width * ctx->sourceBpp, nXSrc, nYSrc, NULL);
 
-    dirty = (uint8_t *) calloc(buf_width * buf_height, sizeof(uint32_t));
-    if (!dirty) {
-        std::cerr << "WAAAAAAAA D:" << std::endl;
-        return;
-    }
+	pSrcData = surface->data;
+	nSrcStep = surface->scanline;
 
-    // begin the RDP frame
-    begin_new_frame(update, context);
-    s = wstream_init(context);
+	if (encoder->frameAck)
+		frameId = rdpmux_encoder_create_frame_id(encoder);
 
-    if (client->settings->RemoteFxCodec) {
-        RFX_RECT rect;
+	if (settings->RemoteFxCodec)
+	{
+		RFX_RECT rect;
+		RFX_MESSAGE* messages;
+		RFX_RECT* messageRects = NULL;
 
-        rect.x = 0;
-        rect.y = 0;
-        rect.width = buf_width;
-        rect.height = buf_height;
+		rdpmux_encoder_prepare(encoder, FREERDP_CODEC_REMOTEFX);
 
-        VLOG(3) << "PEER " << this << ": Attempting to take lock on server surface now for update [(" << (int) x << ", " << (int) y << ") " << (int) w << "x" << (int) h << "];";
-        {
-            std::lock_guard<std::mutex> lock(surface_lock);
-            VLOG(3) << "PEER " << this << ": Lock on server surface taken for update [(" << (int) x << ", " <<
-                    (int) y << ") " << (int) w << "x" << (int) h << "];";
-            surface->FillDirtyRegion(0, 0, buf_width, buf_height, dirty);
-            scanline = surface->GetScanline(buf_width);
-        }
+		s = encoder->bs;
 
-        if (scanline > 0) {
-            rfx_compose_message(context->rfx_context, s, &rect, 1, dirty, rect.width, rect.height, scanline);
-        } else {
-            LOG(WARNING) << "PEER " << this << ": Scanline did not exist, something went wrong with the synchronization!!";
-            return;
-        }
+		rect.x = nXSrc;
+		rect.y = nYSrc;
+		rect.width = nWidth;
+		rect.height = nHeight;
 
+		if (!(messages = rfx_encode_messages(encoder->rfx, &rect, 1, pSrcData,
+				settings->DesktopWidth, settings->DesktopHeight, nSrcStep, &numMessages,
+				settings->MultifragMaxRequestSize)))
+		{
+			return 0;
+		}
 
-        cmd->bitmapDataLength = Stream_GetPosition(s);
-        cmd->bitmapData = Stream_Buffer(s);
-        cmd->codecID = client->settings->RemoteFxCodecId;
-        cmd->skipCompression = TRUE;
+		cmd.codecID = settings->RemoteFxCodecId;
 
-        update->SurfaceBits(update->context, cmd);
-        VLOG(3) << "PEER " << this << ": Server surface lock released for update [(" << (int) x << ", " << (int) y << ") " << (int) w << "x" << (int) h << "];";
-    }
+		cmd.destLeft = 0;
+		cmd.destTop = 0;
+		cmd.destRight = settings->DesktopWidth;
+		cmd.destBottom = settings->DesktopHeight;
 
-    end_frame(client);
-    free(dirty);
-    dirty = NULL;
+		cmd.bpp = 32;
+		cmd.width = settings->DesktopWidth;
+		cmd.height = settings->DesktopHeight;
+		cmd.skipCompression = TRUE;
+
+		if (numMessages > 0)
+			messageRects = messages[0].rects;
+
+		for (i = 0; i < numMessages; i++)
+		{
+			Stream_SetPosition(s, 0);
+
+			if (!rfx_write_message(encoder->rfx, s, &messages[i]))
+			{
+				while (i < numMessages)
+				{
+					rfx_message_free(encoder->rfx, &messages[i++]);
+				}
+				break;
+			}
+			rfx_message_free(encoder->rfx, &messages[i]);
+
+			cmd.bitmapDataLength = Stream_GetPosition(s);
+			cmd.bitmapData = Stream_Buffer(s);
+
+			first = (i == 0) ? TRUE : FALSE;
+			last = ((i + 1) == numMessages) ? TRUE : FALSE;
+
+			if (!encoder->frameAck)
+				IFCALL(update->SurfaceBits, update->context, &cmd);
+			else
+				IFCALL(update->SurfaceFrameBits, update->context, &cmd, first, last, frameId);
+		}
+
+		free(messageRects);
+		free(messages);
+	}
+	else if (settings->NSCodec)
+	{
+		rdpmux_encoder_prepare(encoder, FREERDP_CODEC_NSCODEC);
+
+		s = encoder->bs;
+		Stream_SetPosition(s, 0);
+
+		pSrcData = &pSrcData[(nYSrc * nSrcStep) + (nXSrc * 4)];
+
+		nsc_compose_message(encoder->nsc, s, pSrcData, nWidth, nHeight, nSrcStep);
+
+		cmd.bpp = 32;
+		cmd.codecID = settings->NSCodecId;
+		cmd.destLeft = nXSrc;
+		cmd.destTop = nYSrc;
+		cmd.destRight = cmd.destLeft + nWidth;
+		cmd.destBottom = cmd.destTop + nHeight;
+		cmd.width = nWidth;
+		cmd.height = nHeight;
+
+		cmd.bitmapDataLength = Stream_GetPosition(s);
+		cmd.bitmapData = Stream_Buffer(s);
+		cmd.skipCompression = TRUE;
+
+		first = TRUE;
+		last = TRUE;
+
+		if (!encoder->frameAck)
+			IFCALL(update->SurfaceBits, update->context, &cmd);
+		else
+			IFCALL(update->SurfaceFrameBits, update->context, &cmd, first, last, frameId);
+	}
+
+	return 1;
 }
+
+int RDPPeer::SendBitmapUpdate(int nXSrc, int nYSrc, int nWidth, int nHeight)
+{
+	BYTE* data;
+	BYTE* buffer;
+	int yIdx, xIdx, k;
+	int rows, cols;
+	int nSrcStep;
+	BYTE* pSrcData;
+	UINT32 DstSize;
+	UINT32 SrcFormat;
+	BITMAP_DATA* bitmap;
+	rdpUpdate* update;
+	rdpContext* context;
+	rdpSettings* settings;
+	UINT32 maxUpdateSize;
+	UINT32 totalBitmapSize;
+	UINT32 updateSizeEstimate;
+	BITMAP_DATA* bitmapData;
+	BITMAP_UPDATE bitmapUpdate;
+	rdpMuxEncoder* encoder;
+	rdpMuxSurface* surface;
+	PeerContext* ctx = (PeerContext*) client->context;
+
+	context = (rdpContext*) client->context;
+	update = context->update;
+	settings = context->settings;
+
+	encoder = ctx->encoder;
+	surface = ctx->surface;
+
+	freerdp_image_copy(surface->data, ctx->encodeFormat, surface->scanline, nXSrc, nYSrc,
+		nWidth, nHeight, (BYTE*) shm_buffer_region, ctx->sourceFormat, buf_width * ctx->sourceBpp, nXSrc, nYSrc, NULL);
+
+	maxUpdateSize = settings->MultifragMaxRequestSize;
+
+	if (settings->ColorDepth < 32)
+		rdpmux_encoder_prepare(encoder, FREERDP_CODEC_INTERLEAVED);
+	else
+		rdpmux_encoder_prepare(encoder, FREERDP_CODEC_PLANAR);
+
+	pSrcData = surface->data;
+	nSrcStep = surface->scanline;
+	SrcFormat = ctx->encodeFormat;
+
+	if ((nXSrc % 4) != 0)
+	{
+		nWidth += (nXSrc % 4);
+		nXSrc -= (nXSrc % 4);
+	}
+
+	if ((nYSrc % 4) != 0)
+	{
+		nHeight += (nYSrc % 4);
+		nYSrc -= (nYSrc % 4);
+	}
+
+	rows = (nHeight / 64) + ((nHeight % 64) ? 1 : 0);
+	cols = (nWidth / 64) + ((nWidth % 64) ? 1 : 0);
+
+	k = 0;
+	totalBitmapSize = 0;
+
+	bitmapUpdate.count = bitmapUpdate.number = rows * cols;
+
+	if (!(bitmapData = (BITMAP_DATA*) malloc(sizeof(BITMAP_DATA) * bitmapUpdate.number)))
+		return -1;
+
+	bitmapUpdate.rectangles = bitmapData;
+
+	if ((nWidth % 4) != 0)
+	{
+		nWidth += (4 - (nWidth % 4));
+	}
+
+	if ((nHeight % 4) != 0)
+	{
+		nHeight += (4 - (nHeight % 4));
+	}
+
+	for (yIdx = 0; yIdx < rows; yIdx++)
+	{
+		for (xIdx = 0; xIdx < cols; xIdx++)
+		{
+			bitmap = &bitmapData[k];
+
+			bitmap->width = 64;
+			bitmap->height = 64;
+			bitmap->destLeft = nXSrc + (xIdx * 64);
+			bitmap->destTop = nYSrc + (yIdx * 64);
+
+			if ((int) (bitmap->destLeft + bitmap->width) > (nXSrc + nWidth))
+				bitmap->width = (nXSrc + nWidth) - bitmap->destLeft;
+
+			if ((int) (bitmap->destTop + bitmap->height) > (nYSrc + nHeight))
+				bitmap->height = (nYSrc + nHeight) - bitmap->destTop;
+
+			bitmap->destRight = bitmap->destLeft + bitmap->width - 1;
+			bitmap->destBottom = bitmap->destTop + bitmap->height - 1;
+			bitmap->compressed = TRUE;
+
+			if ((bitmap->width < 4) || (bitmap->height < 4))
+				continue;
+
+			if (settings->ColorDepth < 32)
+			{
+				int bitsPerPixel = settings->ColorDepth;
+				int bytesPerPixel = (bitsPerPixel + 7) / 8;
+
+				DstSize = 64 * 64 * 4;
+				buffer = encoder->grid[k];
+
+				interleaved_compress(encoder->interleaved, buffer, &DstSize, bitmap->width, bitmap->height,
+						pSrcData, SrcFormat, nSrcStep, bitmap->destLeft, bitmap->destTop, NULL, bitsPerPixel);
+
+				bitmap->bitmapDataStream = buffer;
+				bitmap->bitmapLength = DstSize;
+				bitmap->bitsPerPixel = bitsPerPixel;
+				bitmap->cbScanWidth = bitmap->width * bytesPerPixel;
+				bitmap->cbUncompressedSize = bitmap->width * bitmap->height * bytesPerPixel;
+			}
+			else
+			{
+				int dstSize;
+
+				buffer = encoder->grid[k];
+				data = &pSrcData[(bitmap->destTop * nSrcStep) + (bitmap->destLeft * 4)];
+
+				buffer = freerdp_bitmap_compress_planar(encoder->planar, data, SrcFormat,
+						bitmap->width, bitmap->height, nSrcStep, buffer, &dstSize);
+
+				bitmap->bitmapDataStream = buffer;
+				bitmap->bitmapLength = dstSize;
+				bitmap->bitsPerPixel = 32;
+				bitmap->cbScanWidth = bitmap->width * 4;
+				bitmap->cbUncompressedSize = bitmap->width * bitmap->height * 4;
+			}
+
+			bitmap->cbCompFirstRowSize = 0;
+			bitmap->cbCompMainBodySize = bitmap->bitmapLength;
+
+			totalBitmapSize += bitmap->bitmapLength;
+			k++;
+		}
+	}
+
+	bitmapUpdate.count = bitmapUpdate.number = k;
+
+	updateSizeEstimate = totalBitmapSize + (k * bitmapUpdate.count) + 16;
+
+	if (updateSizeEstimate > maxUpdateSize)
+	{
+		int i, j;
+		UINT32 updateSize;
+		UINT32 newUpdateSize;
+		BITMAP_DATA* fragBitmapData = NULL;
+
+		if (k > 0)
+			fragBitmapData = (BITMAP_DATA*) malloc(sizeof(BITMAP_DATA) * k);
+
+		if (!fragBitmapData)
+		{
+			free(bitmapData);
+			return -1;
+		}
+		bitmapUpdate.rectangles = fragBitmapData;
+
+		i = j = 0;
+		updateSize = 1024;
+
+		while (i < k)
+		{
+			newUpdateSize = updateSize + (bitmapData[i].bitmapLength + 16);
+
+			if ((newUpdateSize < maxUpdateSize) && ((i + 1) < k))
+			{
+				CopyMemory(&fragBitmapData[j++], &bitmapData[i++], sizeof(BITMAP_DATA));
+				updateSize = newUpdateSize;
+			}
+			else
+			{
+				if ((i + 1) >= k)
+				{
+					CopyMemory(&fragBitmapData[j++], &bitmapData[i++], sizeof(BITMAP_DATA));
+					updateSize = newUpdateSize;
+				}
+
+				bitmapUpdate.count = bitmapUpdate.number = j;
+				IFCALL(update->BitmapUpdate, context, &bitmapUpdate);
+				updateSize = 1024;
+				j = 0;
+			}
+		}
+
+		free(fragBitmapData);
+	}
+	else
+	{
+		IFCALL(update->BitmapUpdate, context, &bitmapUpdate);
+	}
+
+	free(bitmapData);
+
+	return 1;
+}
+
+int RDPPeer::SendSurfaceUpdate(int x, int y, int width, int height)
+{
+	int l, r, t, b;
+	int status = -1;
+	rdpContext* context;
+	rdpSettings* settings;
+	rdpMuxSurface* surface;
+	RECTANGLE_16 surfaceRect;
+	RECTANGLE_16 invalidRect;
+	const RECTANGLE_16* extents;
+	PeerContext* ctx = (PeerContext*) client->context;
+
+	//fprintf(stderr, "SendSurfaceUpdate: x: %d y: %d width: %d height: %d activated: %d surface: %p\n",
+	//		x, y, width, height, ctx->activated, ctx->surface);
+
+	context = (rdpContext*) client->context;
+	settings = context->settings;
+	surface = ctx->surface;
+
+	invalidRect.left = x;
+	invalidRect.top = y;
+	invalidRect.right = x + width;
+	invalidRect.bottom = y + height;
+
+	if ((width * height) > 0)
+	{
+		EnterCriticalSection(&ctx->lock);
+
+		region16_union_rect(&ctx->invalidRegion, &ctx->invalidRegion, &invalidRect);
+
+		if (surface)
+		{
+			surfaceRect.left = 0;
+			surfaceRect.top = 0;
+			surfaceRect.right = surface->width;
+			surfaceRect.bottom = surface->height;
+
+			region16_intersect_rect(&ctx->invalidRegion, &ctx->invalidRegion, &surfaceRect);
+		}
+
+		LeaveCriticalSection(&ctx->lock);
+	}
+
+	if (!ctx->activated || !ctx->surface)
+		return 1;
+
+	if (!surface)
+		return 1;
+
+	EnterCriticalSection(&ctx->lock);
+
+	if (region16_is_empty(&ctx->invalidRegion))
+	{
+		LeaveCriticalSection(&ctx->lock);
+		return 1;
+	}
+
+	extents = region16_extents(&ctx->invalidRegion);
+
+	l = extents->left;
+	r = extents->right;
+	t = extents->top;
+	b = extents->bottom;
+
+	region16_clear(&ctx->invalidRegion);
+
+	LeaveCriticalSection(&ctx->lock);
+
+	if (l % 16)
+		l -= (l % 16);
+
+	if (t % 16)
+		t -= (t % 16);
+
+	if (r % 16)
+		r += 16 - (r % 16);
+
+	if (b % 16)
+		b += 16 - (b % 16);
+
+	if (r > (int) buf_width)
+		r = (int) buf_width;
+
+	if (b > (int) buf_height)
+		b = (int) buf_height;
+
+	x = l;
+	y = t;
+	width = r - l;
+	height = b - t;
+
+	if (0)
+	{
+		x = 0;
+		y = 0;
+		width = (int) buf_width;
+		height = (int) buf_height;
+	}
+
+	fprintf(stderr, "SendSurfaceUpdate: x: %d y: %d width: %d height: %d\n", x, y, width, height);
+
+	if (settings->RemoteFxCodec || settings->NSCodec)
+	{
+		status = SendSurfaceBits(x, y, width, height);
+	}
+	else
+	{
+		status = SendBitmapUpdate(x, y, width, height);
+	}
+
+	return status;
+}
+
