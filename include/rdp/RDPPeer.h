@@ -135,6 +135,11 @@ public:
      */
     RDPListener *GetListener();
 
+    /**
+     * @brief sends a message to stop the client connection.
+     */
+    void CloseClient();
+
 private:
     freerdp_peer *client;
     void *shm_buffer_region;
@@ -144,6 +149,8 @@ private:
     PIXEL_FORMAT buf_format;
 
     std::mutex surface_lock;
+    std::mutex stopMutex;
+    bool stop;
 
     int SendSurfaceBits(int nXSrc, int nYSrc, int nWidth, int nHeight);
     int SendBitmapUpdate(int nXSrc, int nYSrc, int nWidth, int nHeight);

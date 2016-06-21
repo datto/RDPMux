@@ -197,7 +197,7 @@ void RDPServerWorker::run()
                     msgpack::object obj = unpacked.get();
                     std::vector<uint32_t> vec;
                     obj.convert(&vec);
-                    //VLOG(2) << "Processing incoming message " << vec;
+                    LOG(INFO) << "Processing incoming message " << vec;
                     server->processIncomingMessage(vec);
                 } catch (std::out_of_range &e) {
                     LOG(ERROR) << "Listener with UUID " << uuid << " does not exist in map!";

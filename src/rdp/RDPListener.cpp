@@ -138,7 +138,7 @@ void RDPListener::RunServer()
                 if (stop) break;
             }
 
-            size_t status = WaitForMultipleObjects(count, connections, false, INFINITE);
+            size_t status = WaitForMultipleObjects(count, connections, false, 5);
 
             if (status == WAIT_FAILED) {
                 VLOG(1) << "LISTENER " << this << ": Wait failed.";
@@ -153,7 +153,15 @@ void RDPListener::RunServer()
         }
     }
     VLOG(1) << "LISTENER " << this << ": Main loop exited";
+
+    listener->Close(listener);
+
+    for (auto peer : peerlist) {
+        peer->CloseClient();
+    }
+
     parent->UnregisterVM(this->uuid, this->port); // this will trigger destruction of the RDPListener object.
+    dbus_conn->unregister_object(registered_id);
 }
 
 void RDPListener::processOutgoingMessage(std::vector<uint16_t> vec)
@@ -165,6 +173,7 @@ void RDPListener::processOutgoingMessage(std::vector<uint16_t> vec)
 void RDPListener::processIncomingMessage(std::vector<uint32_t> rvec)
 {
     // we filter by what type of message it is
+//    LOG(INFO) << "Processing message " << rvec;
     if (rvec[0] == DISPLAY_UPDATE) {
         //VLOG(1) << "LISTENER " << this << ": processing display update event now";
         processDisplayUpdate(rvec);

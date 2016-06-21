@@ -267,7 +267,8 @@ RDPListener *RDPPeer::GetListener()
 
 RDPPeer::RDPPeer(freerdp_peer *client, RDPListener *listener) : client(client),
                                                                 shm_buffer_region(listener->shm_buffer),
-                                                                listener(listener)
+                                                                listener(listener),
+                                                                stop(false)
 {
 	client->ContextSize = sizeof(PeerContext);
 	client->ContextNew = (psPeerContextNew) peer_context_new;
@@ -344,7 +345,14 @@ void RDPPeer::RunThread(freerdp_peer* client)
 		currTime = GetTickCount64();
 		dwTimeout = (DWORD) ((currTime > frameTime) ? 1 : frameTime - currTime);
 
-		dwTimeout = INFINITE;
+		dwTimeout = 5; // set it to 5 ms for now
+
+        // check if we are terminating
+        {
+            std::unique_lock<std::mutex> lock(stopMutex);
+            if (stop) break;
+        }
+
 		waitStatus = WaitForMultipleObjects(nCount, events, FALSE, dwTimeout);
 
 		if (waitStatus == WAIT_FAILED) {
@@ -387,8 +395,16 @@ void RDPPeer::RunThread(freerdp_peer* client)
 #endif
 	}
 
-	this->listener->unregisterPeer(this);
+    if (!stop)
+	    this->listener->unregisterPeer(this);
 }
+
+void RDPPeer::CloseClient()
+{
+    std::unique_lock<std::mutex> lock(stopMutex);
+    stop = true;
+}
+
 
 void *RDPPeer::PeerThread(void *arg)
 {
