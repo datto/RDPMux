@@ -176,6 +176,11 @@ void process_options(const int argc, const char *argv[])
                         "Port to begin spawning listeners on."
                 )
                 (
+                        "no-auth,n",
+                        po::bool_switch()->default_value(false),
+                        "Disable authentication for peer connections"
+                )
+                (
                         "certificate-dir,d",
                         po::value<std::string>()->required(),
                         "Directory where the RDP certificates are stored."
@@ -219,6 +224,7 @@ int main(int argc, const char* argv[])
     }
 
     auto port = vm["port"].as<uint16_t>();
+    bool auth = !vm["no-auth"].as<bool>(); // take the opposite of no-auth to determine whether to auth connections
 
     // final check to make sure starting port is within bounds
     if (port > 0 && port < 65535) {
@@ -226,7 +232,7 @@ int main(int argc, const char* argv[])
             LOG(WARNING) << "Port number is low (below 1024), may conflict with other system services!";
         }
         try {
-            broker = make_unique<RDPServerWorker>(port); // create broker
+            broker = make_unique<RDPServerWorker>(port, auth); // create broker
         } catch (std::exception &e) {
             LOG(FATAL) << "Error initializing socket: " << e.what();
             return 1;

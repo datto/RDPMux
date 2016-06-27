@@ -18,11 +18,12 @@
 #include <msgpack/unpack.hpp>
 #include "RDPServerWorker.h"
 
-RDPServerWorker::RDPServerWorker(uint16_t port)
+RDPServerWorker::RDPServerWorker(uint16_t port, bool auth)
         : starting_port(port),
           initialized(false),
           context(1), // todo: explore the possibility of needing more than one thread
-          zsocket(context, ZMQ_ROUTER)
+          zsocket(context, ZMQ_ROUTER),
+          authenticating(auth)
 {
     std::string path = "ipc://@/tmp/rdpmux";
     zsocket.setsockopt(ZMQ_ROUTER_MANDATORY, 1);
@@ -59,8 +60,7 @@ bool RDPServerWorker::RegisterNewVM(std::string uuid, int id)
     std::shared_ptr<RDPListener> l;
 
     // find the next available port from the list
-    // stdlib already uses binary search, so if this gets slow for you, consider not running as many VMs on the same
-    // computer
+    // if this gets slow for you, consider not running as many VMs on the same computer
     for (uint16_t i = starting_port; i < 65535; i++) {
         if (ports.count(i) == 0) {
             // check if port is available to be bound
@@ -77,9 +77,10 @@ bool RDPServerWorker::RegisterNewVM(std::string uuid, int id)
             // try binding
             int ret = bind(sockfd, res->ai_addr, res->ai_addrlen);
             free(res); // free the linked list of results no matter what
-            if (ret < 0) {
+            if (ret < 0) { // failed, continue the loop
                 continue;
             }
+            // cleanup and setting the port if we suceeded
             close(sockfd);
             port = i;
             ports.insert(i);
@@ -93,7 +94,7 @@ bool RDPServerWorker::RegisterNewVM(std::string uuid, int id)
     }
 
     try {
-        l = std::make_shared<RDPListener>(uuid, id, port, this, dbus_conn); // in here go the RDPListener args
+        l = std::make_shared<RDPListener>(uuid, id, port, this, this->authenticating, dbus_conn); // RDPListener args
     } catch (std::exception &e) {
         return false;
     }

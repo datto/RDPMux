@@ -118,6 +118,20 @@ static BOOL peer_post_connect(freerdp_peer *client)
 	DesktopHeight = listener->GetHeight();
 	ColorDepth = 32;
 
+    // authentication
+    if (listener->GetAuthenticating()) {
+        LOG(INFO) << "Checking authentication";
+        if (settings->Username && settings->Password) {
+            if (!listener->CheckAuthentication(settings->Username, settings->Password)) {
+                LOG(WARNING) << "Invalid credential pair from client";
+                return FALSE;
+            }
+        } else {
+            LOG(INFO) << "No username/password combo passed";
+            return FALSE;
+        }
+    }
+
 	if (settings->ColorDepth == 24)
 		settings->ColorDepth = 16; /* disable 24bpp */
 

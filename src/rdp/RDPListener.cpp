@@ -52,18 +52,25 @@ BOOL StartPeerLoop(freerdp_listener *instance, freerdp_peer *client)
 Glib::ustring RDPListener::introspection_xml =
         "<node>"
         "  <interface name='org.RDPMux.RDPListener'>"
+        "    <method name='SetCredentials'>"
+        "      <arg type='s' name='uuid' direction='in' />"
+        "      <arg type='s' name='salt' direction='in' />"
+        "      <arg type='a(ss)' name='credentials' direction='in' />"
+        "      <arg type='b' name='success' direction='out' />"
+        "    </method>"
         "    <property type='i' name='Port' access='read' />"
         "    <property type='i' name='NumConnectedPeers' access='read'/>"
         "  </interface>"
         "</node>";
 
-RDPListener::RDPListener(std::string uuid, int vm_id, uint16_t port, RDPServerWorker *parent,
+RDPListener::RDPListener(std::string uuid, int vm_id, uint16_t port, RDPServerWorker *parent, bool auth,
                          Glib::RefPtr<Gio::DBus::Connection> conn) : shm_buffer(nullptr),
                                                                      dbus_conn(conn),
                                                                      parent(parent),
                                                                      port(port),
                                                                      uuid(uuid),
-                                                                     vm_id(vm_id)
+                                                                     vm_id(vm_id),
+                                                                     authenticating(auth)
 {
     WTSRegisterWtsApiFunctionTable(FreeRDP_InitWtsApi());
     stop = false;
@@ -297,6 +304,11 @@ void RDPListener::unregisterPeer(RDPPeer *peer)
     peerlist.erase(pos);
 }
 
+bool RDPListener::CheckAuthentication(const char *username, const char *password)
+{
+    return false;
+}
+
 size_t RDPListener::GetWidth()
 {
     return this->width;
@@ -307,6 +319,11 @@ size_t RDPListener::GetHeight()
     return this->height;
 }
 
+bool RDPListener::GetAuthenticating()
+{
+    return authenticating;
+}
+
 void RDPListener::on_method_call(const Glib::RefPtr<Gio::DBus::Connection> &,
                                  const Glib::ustring &,
                                  const Glib::ustring &, const Glib::ustring &,
@@ -314,7 +331,12 @@ void RDPListener::on_method_call(const Glib::RefPtr<Gio::DBus::Connection> &,
                                  const Glib::VariantContainerBase &parameters,
                                  const Glib::RefPtr<Gio::DBus::MethodInvocation> &invocation)
 {
-    // nothing here for now
+    if (method_name == "SetCredentials") {
+        // TODO: fill out stub
+        const auto res_variant = Glib::Variant<bool>::create(true);
+        auto res = Glib::VariantContainerBase::create_tuple(res_variant);
+        invocation->return_value(res);
+    }
 }
 
 void RDPListener::on_property_call(Glib::VariantBase &property,

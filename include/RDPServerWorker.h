@@ -43,7 +43,7 @@ public:
      * @param port The starting port for new RDP listener connections
      * @param socket_path File path to the ZeroMQ socket.
      */
-    RDPServerWorker(uint16_t port);
+    RDPServerWorker(uint16_t port, bool auth);
 
     /**
      * @brief Initializes the run loop. After this function returns successfully, the ServerWorker is ready to process
@@ -160,6 +160,11 @@ protected:
      * @brief ZeroMQ socket.
      */
     zmq::socket_t zsocket;
+
+    /**
+     * @brief whether RDPMux should authenticate peer connections.
+     */
+    bool authenticating;
 
     /**
      * @brief Main loop function that receives messages and processes them for dispatch to the RDP listener.

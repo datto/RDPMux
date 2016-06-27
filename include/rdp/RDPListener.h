@@ -45,9 +45,10 @@ public:
      * @param vm_id The unique ID of the VM's framebuffer.
      * @param port The port the listener should bind to.
      * @param parent A pointer to the RDPServerWorker for (LIMITED) use // todo: not so limited
+     * @param auth Whether the listener should authenticate peer connections
      * @param conn Reference to the process's DBus connection for exposing the Listener object
      */
-    RDPListener(std::string uuid, int vm_id, uint16_t port, RDPServerWorker *parent,
+    RDPListener(std::string uuid, int vm_id, uint16_t port, RDPServerWorker *parent, bool auth,
                 Glib::RefPtr<Gio::DBus::Connection> conn);
     /**
      * @brief Safely cleans up the freerdp_listener struct and frees all WinPR objects.
@@ -120,6 +121,13 @@ public:
     void unregisterPeer(RDPPeer *peer);
 
     /**
+     * @brief Checks authentication of the credential pair passed in.
+     *
+     * @returns Whether the credentials are valid.
+     */
+    bool CheckAuthentication(const char *username, const char *password);
+
+    /**
      * @brief Gets the width of the framebuffer.
      *
      * @returns The width of the framebuffer.
@@ -139,6 +147,13 @@ public:
      * @returns The pixel format of the framebuffer.
      */
     pixman_format_code_t GetFormat();
+
+    /**
+     * @brief See whether the listener was configured to authenticate connections
+     *
+     * @returns authentication configuration status
+     */
+    bool GetAuthenticating();
 
     /**
      * @brief The freerdp_listener struct this object manages.
@@ -217,6 +232,11 @@ private:
     std::mutex stopMutex;
     bool stop;
     guint registered_id = 0;
+
+    /**
+     * @brief whether the listener is configured to authenticate peers
+     */
+    bool authenticating;
 
     /**
     * @brief Method called when a DBus method call is invoked.
