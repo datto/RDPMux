@@ -22,6 +22,7 @@ include_directories("${CMAKE_CURRENT_SOURCE_DIR}/include")
 include(GNUInstallDirs)
 file(GLOB_RECURSE QEMU_RDP_SOURCE_FILES
         "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/src/*.c"
         "${CMAKE_CURRENT_SOURCE_DIR}/include/*.h"
         "${CMAKE_CURRENT_SOURCE_DIR}/include/*.hpp")
 

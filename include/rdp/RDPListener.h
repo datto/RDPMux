@@ -239,6 +239,16 @@ private:
     bool authenticating;
 
     /**
+     * @brief Map holding set of authentication credentials
+     */
+    std::map<std::string, std::string> credentials;
+
+    /**
+     * @brief Salt for password authentication.
+     */
+    std::string salt;
+
+    /**
     * @brief Method called when a DBus method call is invoked.
     */
     void on_method_call(const Glib::RefPtr<Gio::DBus::Connection> &,

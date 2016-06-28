@@ -147,7 +147,7 @@ void RDPServerWorker::run()
     zmq::pollitem_t item = {
             (void *) zsocket,
             0,
-            ZMQ_POLLIN, // can i even do this?
+            ZMQ_POLLIN,
             0
     };
 

@@ -16,11 +16,14 @@
 
 #include "rdp/RDPListener.h"
 #include "RDPServerWorker.h"
-#include <freerdp/channels/channels.h>
-#include <msgpack/object.hpp>
+#include "util/crypt_blowfish.h"
 #include "rdp/RDPPeer.h"
-#include <sys/mman.h>
+#include <freerdp/channels/channels.h>
 #include <fcntl.h>
+#include <msgpack/object.hpp>
+#include <sys/mman.h>
+
+#define MAX_SALT_LEN 123
 
 thread_local RDPListener *rdp_listener_object = NULL;
 
@@ -306,7 +309,30 @@ void RDPListener::unregisterPeer(RDPPeer *peer)
 
 bool RDPListener::CheckAuthentication(const char *username, const char *password)
 {
-    return false;
+    std::string old_hash;
+    char output[MAX_SALT_LEN + 1];
+    memset(output, 0, MAX_SALT_LEN + 1);
+
+    char *new_hash = _crypt_blowfish_rn(password, salt.c_str(), output, sizeof(output));
+    if (!new_hash) {
+        memset(output, 0, MAX_SALT_LEN + 1);
+        LOG(WARNING) << "Password check for user " << username << " failed: " << strerror(errno);
+        return false;
+    }
+
+    try {
+        old_hash = credentials.at(username);
+    } catch (std::exception &e) {
+        memset(output, 0, MAX_SALT_LEN + 1);
+        LOG(WARNING) << "Password check for user " << username << " failed: No such user available for auth";
+        return false;
+    }
+
+    bool res = (strcmp(old_hash.c_str(), new_hash) == 0);
+
+    memset(output, 0, MAX_SALT_LEN + 1);
+    free(new_hash);
+    return res;
 }
 
 size_t RDPListener::GetWidth()
