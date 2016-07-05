@@ -48,9 +48,15 @@ static BOOL peer_context_new(freerdp_peer* client, PeerContext* ctx)
 	settings->SuppressOutput = TRUE;
 	settings->RefreshRect = TRUE;
 
-	settings->RdpSecurity = TRUE;
-	settings->TlsSecurity = TRUE;
-	settings->NlaSecurity = FALSE;
+	settings->RdpSecurity = FALSE;
+
+    if (ctx->peerObj->GetListener()->Authenticating()) {
+        settings->NlaSecurity = TRUE;
+        settings->TlsSecurity = FALSE;
+    } else {
+        settings->NlaSecurity = FALSE;
+        settings->TlsSecurity = TRUE;
+    }
 
 	settings->EncryptionLevel = ENCRYPTION_LEVEL_CLIENT_COMPATIBLE;
 
@@ -117,20 +123,6 @@ static BOOL peer_post_connect(freerdp_peer *client)
 	DesktopWidth = listener->GetWidth();
 	DesktopHeight = listener->GetHeight();
 	ColorDepth = 32;
-
-    // authentication
-    if (listener->GetAuthenticating()) {
-        LOG(INFO) << "Checking authentication";
-        if (settings->Username && settings->Password) {
-            if (!listener->CheckAuthentication(settings->Username, settings->Password)) {
-                LOG(WARNING) << "Invalid credential pair from client";
-                return FALSE;
-            }
-        } else {
-            LOG(INFO) << "No username/password combo passed";
-            return FALSE;
-        }
-    }
 
 	if (settings->ColorDepth == 24)
 		settings->ColorDepth = 16; /* disable 24bpp */

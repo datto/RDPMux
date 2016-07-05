@@ -153,7 +153,7 @@ public:
      *
      * @returns authentication configuration status
      */
-    bool GetAuthenticating();
+    bool Authenticating();
 
     /**
      * @brief The freerdp_listener struct this object manages.
@@ -241,12 +241,7 @@ private:
     /**
      * @brief Map holding set of authentication credentials
      */
-    std::map<std::string, std::string> credentials;
-
-    /**
-     * @brief Salt for password authentication.
-     */
-    std::string salt;
+    std::string credential_path;
 
     /**
     * @brief Method called when a DBus method call is invoked.

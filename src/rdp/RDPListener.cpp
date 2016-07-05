@@ -16,14 +16,11 @@
 
 #include "rdp/RDPListener.h"
 #include "RDPServerWorker.h"
-#include "util/crypt_blowfish.h"
 #include "rdp/RDPPeer.h"
 #include <freerdp/channels/channels.h>
 #include <fcntl.h>
 #include <msgpack/object.hpp>
 #include <sys/mman.h>
-
-#define MAX_SALT_LEN 123
 
 thread_local RDPListener *rdp_listener_object = NULL;
 
@@ -55,14 +52,15 @@ BOOL StartPeerLoop(freerdp_listener *instance, freerdp_peer *client)
 Glib::ustring RDPListener::introspection_xml =
         "<node>"
         "  <interface name='org.RDPMux.RDPListener'>"
-        "    <method name='SetCredentials'>"
-        "      <arg type='s' name='uuid' direction='in' />"
-        "      <arg type='s' name='salt' direction='in' />"
-        "      <arg type='a(ss)' name='credentials' direction='in' />"
-        "      <arg type='b' name='success' direction='out' />"
+        "    <method name='SetCredentialFile'>"
+        "      <arg type='s' name='CredentialFile' direction='in' />"
+        "    </method>"
+        "    <method name='SetAuthentication'>"
+        "      <arg type='b' name='auth' direction='in' />"
         "    </method>"
         "    <property type='i' name='Port' access='read' />"
         "    <property type='i' name='NumConnectedPeers' access='read'/>"
+        "    <property type='b' name='RequiresAuthentication' access='read'/>"
         "  </interface>"
         "</node>";
 
@@ -307,34 +305,6 @@ void RDPListener::unregisterPeer(RDPPeer *peer)
     peerlist.erase(pos);
 }
 
-bool RDPListener::CheckAuthentication(const char *username, const char *password)
-{
-    std::string old_hash;
-    char output[MAX_SALT_LEN + 1];
-    memset(output, 0, MAX_SALT_LEN + 1);
-
-    char *new_hash = _crypt_blowfish_rn(password, salt.c_str(), output, sizeof(output));
-    if (!new_hash) {
-        memset(output, 0, MAX_SALT_LEN + 1);
-        LOG(WARNING) << "Password check for user " << username << " failed: " << strerror(errno);
-        return false;
-    }
-
-    try {
-        old_hash = credentials.at(username);
-    } catch (std::exception &e) {
-        memset(output, 0, MAX_SALT_LEN + 1);
-        LOG(WARNING) << "Password check for user " << username << " failed: No such user available for auth";
-        return false;
-    }
-
-    bool res = (strcmp(old_hash.c_str(), new_hash) == 0);
-
-    memset(output, 0, MAX_SALT_LEN + 1);
-    free(new_hash);
-    return res;
-}
-
 size_t RDPListener::GetWidth()
 {
     return this->width;
@@ -345,23 +315,36 @@ size_t RDPListener::GetHeight()
     return this->height;
 }
 
-bool RDPListener::GetAuthenticating()
+bool RDPListener::Authenticating()
 {
     return authenticating;
 }
 
-void RDPListener::on_method_call(const Glib::RefPtr<Gio::DBus::Connection> &,
-                                 const Glib::ustring &,
-                                 const Glib::ustring &, const Glib::ustring &,
+void RDPListener::on_method_call(const Glib::RefPtr<Gio::DBus::Connection> &, /* connection */
+                                 const Glib::ustring &, /* sender */
+                                 const Glib::ustring &, /* object path */
+                                 const Glib::ustring &, /* interface name */
                                  const Glib::ustring &method_name,
                                  const Glib::VariantContainerBase &parameters,
                                  const Glib::RefPtr<Gio::DBus::MethodInvocation> &invocation)
 {
-    if (method_name == "SetCredentials") {
-        // TODO: fill out stub
-        const auto res_variant = Glib::Variant<bool>::create(true);
-        auto res = Glib::VariantContainerBase::create_tuple(res_variant);
-        invocation->return_value(res);
+    if (method_name == "SetCredentialFile") {
+        Glib::Variant<std::string> cred_variant;
+        parameters.get_child(cred_variant, 0);
+
+        credential_path = cred_variant.get();
+
+        invocation->return_value(Glib::VariantContainerBase());
+    } else if (method_name == "SetAuthentication") {
+        Glib::Variant<bool> auth_variant;
+        parameters.get_child(auth_variant, 0);
+
+        this->authenticating = auth_variant.get();
+        invocation->return_value(Glib::VariantContainerBase());
+    } else {
+        Gio::DBus::Error error(Gio::DBus::Error::UNKNOWN_METHOD,
+            "Method does not exist.");
+        invocation->return_error(error);
     }
 }
 
@@ -376,6 +359,8 @@ void RDPListener::on_property_call(Glib::VariantBase &property,
         property = Glib::Variant<uint16_t>::create(port);
     } else if (property_name == "NumConnectedPeers") {
         property = Glib::Variant<uint32_t>::create(peerlist.size());
+    } else if (property_name == "RequiresAuthentication") {
+        property = Glib::Variant<bool>::create(authenticating);
     }
 }
 
