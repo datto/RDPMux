@@ -50,14 +50,6 @@ static BOOL peer_context_new(freerdp_peer* client, PeerContext* ctx)
 
 	settings->RdpSecurity = FALSE;
 
-    if (ctx->peerObj->GetListener()->Authenticating()) {
-        settings->NlaSecurity = TRUE;
-        settings->TlsSecurity = FALSE;
-    } else {
-        settings->NlaSecurity = FALSE;
-        settings->TlsSecurity = TRUE;
-    }
-
 	settings->EncryptionLevel = ENCRYPTION_LEVEL_CLIENT_COMPATIBLE;
 
 	ctx->vcm = WTSOpenServerA((LPSTR) client->context);
@@ -315,6 +307,15 @@ RDPPeer::RDPPeer(freerdp_peer *client, RDPListener *listener) : client(client),
 	client->settings->CertificateFile = _strdup(crt_path.c_str());
 	client->settings->PrivateKeyFile = _strdup(key_path.c_str());
 	client->settings->RdpKeyFile = _strdup(key_path.c_str());
+
+    // authentication method
+    if (GetListener()->Authenticating()) {
+        client->settings->NlaSecurity = TRUE;
+        client->settings->TlsSecurity = FALSE;
+    } else {
+        client->settings->NlaSecurity = FALSE;
+        client->settings->TlsSecurity = TRUE;
+    }
 }
 
 RDPPeer::~RDPPeer()
