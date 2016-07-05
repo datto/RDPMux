@@ -121,13 +121,6 @@ public:
     void unregisterPeer(RDPPeer *peer);
 
     /**
-     * @brief Checks authentication of the credential pair passed in.
-     *
-     * @returns Whether the credentials are valid.
-     */
-    bool CheckAuthentication(const char *username, const char *password);
-
-    /**
      * @brief Gets the width of the framebuffer.
      *
      * @returns The width of the framebuffer.
