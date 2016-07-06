@@ -129,6 +129,13 @@ public:
     size_t GetSurfaceHeight();
 
     /**
+     * @brief Gets the capture fps
+     *
+     * @returns The fps.
+     */
+    int GetCaptureFps();
+
+    /**
      * @brief Returns a reference to the RDPListener associated with this peer.
      *
      * @returns RDPListener reference.
@@ -154,7 +161,7 @@ private:
 
     int SendSurfaceBits(int nXSrc, int nYSrc, int nWidth, int nHeight);
     int SendBitmapUpdate(int nXSrc, int nYSrc, int nWidth, int nHeight);
-    int SendSurfaceUpdate(int x, int y, int width, int height);
+    int SendSurfaceUpdate();
 
     PIXEL_FORMAT GetPixelFormatForPixmanFormat(pixman_format_code_t f);
     void CreateSurface(int width, int height, PIXEL_FORMAT r);

@@ -200,6 +200,8 @@ void RDPListener::processIncomingMessage(std::vector<uint32_t> rvec)
     }
 }
 
+int g_CaptureFps = 30;
+
 void RDPListener::processDisplayUpdate(std::vector<uint32_t> msg)
 {
     // note that under current calling conditions, this will run in the mainloop of the RDPServerWorker. This is what
@@ -219,6 +221,13 @@ void RDPListener::processDisplayUpdate(std::vector<uint32_t> msg)
             //VLOG(2) << std::dec << "LISTENER " << this << ": Now processing display update message [(" << (int) x << ", " << (int) y << ") " << (int) w << ", " << (int) h << "]";
             std::for_each(peerlist.begin(), peerlist.end(), [=](RDPPeer *peer) {
                 peer->PartialDisplayUpdate(x, y, w, h);
+                g_CaptureFps = (g_CaptureFps + peer->GetCaptureFps()) / 2;
+
+                if (g_CaptureFps < 3)
+                	g_CaptureFps = 3;
+
+                if (g_CaptureFps > 30)
+                	g_CaptureFps = 30;
             });
         }
     }
@@ -227,7 +236,7 @@ void RDPListener::processDisplayUpdate(std::vector<uint32_t> msg)
     // send back display update complete message
     std::vector<uint16_t> vec;
     vec.push_back(DISPLAY_UPDATE_COMPLETE);
-    vec.push_back(1);
+    vec.push_back(g_CaptureFps);
 
     parent->sendMessage(vec, uuid);
     //VLOG(1) << "LISTENER " << this << ": Sent ack to QEMU process.";

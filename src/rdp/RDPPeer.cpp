@@ -258,6 +258,16 @@ size_t RDPPeer::GetSurfaceHeight()
 	return listener->GetHeight();
 }
 
+int RDPPeer::GetCaptureFps()
+{
+	PeerContext* ctx = (PeerContext*) client->context;
+
+	if (!ctx || !ctx->encoder)
+		return 30;
+
+	return rdpmux_encoder_preferred_fps(ctx->encoder);
+}
+
 RDPListener *RDPPeer::GetListener()
 {
 	return listener;
@@ -379,27 +389,6 @@ void RDPPeer::RunThread(freerdp_peer* client)
 			VLOG(1) << "PEER: Virtual channel connection closed.";
 			break;
 		}
-
-#if 0
-		if (GetTickCount64() >= frameTime)
-		{
-			if (ctx->activated)
-			{
-				/* send update here */
-
-				status = SendSurfaceUpdate(0, 0, 0, 0);
-
-				if (status <= 0)
-				{
-					SetEvent(ctx->stopEvent);
-					break;
-				}
-			}
-
-			dwInterval = 1000 / ctx->frameRate;
-			frameTime += dwInterval;
-		}
-#endif
 	}
 
     if (!stop)
@@ -458,26 +447,21 @@ void RDPPeer::ProcessKeyboardMsg(uint16_t flags, uint16_t keycode)
 
 void RDPPeer::PartialDisplayUpdate(uint32_t x_coord, uint32_t y_coord, uint32_t width, uint32_t height)
 {
-	if (0)
-	{
-		RECTANGLE_16 invalidRect;
-		PeerContext* ctx = (PeerContext*) client->context;
+	RECTANGLE_16 invalidRect;
+	PeerContext* ctx = (PeerContext*) client->context;
 
-		invalidRect.left = (UINT16) x_coord;
-		invalidRect.top = (UINT16) y_coord;
-		invalidRect.right = (UINT16) (x_coord + width);
-		invalidRect.bottom = (UINT16) (y_coord + height);
+	invalidRect.left = (UINT16) x_coord;
+	invalidRect.top = (UINT16) y_coord;
+	invalidRect.right = (UINT16) (x_coord + width);
+	invalidRect.bottom = (UINT16) (y_coord + height);
 
-		EnterCriticalSection(&ctx->lock);
+	EnterCriticalSection(&ctx->lock);
 
-		region16_union_rect(&ctx->invalidRegion, &ctx->invalidRegion, &invalidRect);
+	region16_union_rect(&ctx->invalidRegion, &ctx->invalidRegion, &invalidRect);
 
-		LeaveCriticalSection(&ctx->lock);
-	}
-	else
-	{
-		SendSurfaceUpdate((int) x_coord, (int) y_coord, (int) width, (int) height);
-	}
+	SendSurfaceUpdate();
+
+	LeaveCriticalSection(&ctx->lock);
 }
 
 PIXEL_FORMAT RDPPeer::GetPixelFormatForPixmanFormat(pixman_format_code_t f)
@@ -951,8 +935,11 @@ int RDPPeer::SendBitmapUpdate(int nXSrc, int nYSrc, int nWidth, int nHeight)
 	return 1;
 }
 
-int RDPPeer::SendSurfaceUpdate(int x, int y, int width, int height)
+int RDPPeer::SendSurfaceUpdate()
 {
+	int x, y;
+	int width;
+	int height;
 	int l, r, t, b;
 	int status = -1;
 	rdpContext* context;
@@ -963,50 +950,22 @@ int RDPPeer::SendSurfaceUpdate(int x, int y, int width, int height)
 	const RECTANGLE_16* extents;
 	PeerContext* ctx = (PeerContext*) client->context;
 
-	//fprintf(stderr, "SendSurfaceUpdate: x: %d y: %d width: %d height: %d activated: %d surface: %p\n",
-	//		x, y, width, height, ctx->activated, ctx->surface);
-
 	context = (rdpContext*) client->context;
 	settings = context->settings;
 	surface = ctx->surface;
 
-	invalidRect.left = x;
-	invalidRect.top = y;
-	invalidRect.right = x + width;
-	invalidRect.bottom = y + height;
-
-	if ((width * height) > 0)
-	{
-		EnterCriticalSection(&ctx->lock);
-
-		region16_union_rect(&ctx->invalidRegion, &ctx->invalidRegion, &invalidRect);
-
-		if (surface)
-		{
-			surfaceRect.left = 0;
-			surfaceRect.top = 0;
-			surfaceRect.right = surface->width;
-			surfaceRect.bottom = surface->height;
-
-			region16_intersect_rect(&ctx->invalidRegion, &ctx->invalidRegion, &surfaceRect);
-		}
-
-		LeaveCriticalSection(&ctx->lock);
-	}
-
 	if (!ctx->activated || !ctx->surface)
 		return 1;
 
-	if (!surface)
-		return 1;
+	surfaceRect.left = 0;
+	surfaceRect.top = 0;
+	surfaceRect.right = surface->width;
+	surfaceRect.bottom = surface->height;
 
-	EnterCriticalSection(&ctx->lock);
+	region16_intersect_rect(&ctx->invalidRegion, &ctx->invalidRegion, &surfaceRect);
 
 	if (region16_is_empty(&ctx->invalidRegion))
-	{
-		LeaveCriticalSection(&ctx->lock);
 		return 1;
-	}
 
 	extents = region16_extents(&ctx->invalidRegion);
 
@@ -1016,8 +975,6 @@ int RDPPeer::SendSurfaceUpdate(int x, int y, int width, int height)
 	b = extents->bottom;
 
 	region16_clear(&ctx->invalidRegion);
-
-	LeaveCriticalSection(&ctx->lock);
 
 	if (l % 16)
 		l -= (l % 16);
@@ -1041,14 +998,6 @@ int RDPPeer::SendSurfaceUpdate(int x, int y, int width, int height)
 	y = t;
 	width = r - l;
 	height = b - t;
-
-	if (0)
-	{
-		x = 0;
-		y = 0;
-		width = (int) buf_width;
-		height = (int) buf_height;
-	}
 
 	fprintf(stderr, "SendSurfaceUpdate: x: %d y: %d width: %d height: %d\n", x, y, width, height);
 
