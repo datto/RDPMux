@@ -232,6 +232,11 @@ private:
     bool authenticating;
 
     /**
+     * @brief Target FPS of the backend guest.
+     */
+    uint16_t targetFPS;
+
+    /**
      * @brief Map holding set of authentication credentials
      */
     std::string credential_path;
