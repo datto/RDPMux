@@ -63,7 +63,7 @@ public:
     /**
      * @brief Processes outgoing messages from the RDP client to the VM.
      *
-     * @param sbuf serialized msgpack object containing update.
+     * @param sbuf Serialized msgpack object containing update.
      */
     void processOutgoingMessage(std::vector<uint16_t> vec);
 
@@ -222,12 +222,21 @@ private:
      */
     pixman_format_code_t format;
 
+    /**
+     * @brief Mutex guarding stop.
+     */
     std::mutex stopMutex;
+    /**
+     * @brief Flag to be set when the listener needs to clean up and exit.
+     */
     bool stop;
+    /**
+     * @brief DBus id.
+     */
     guint registered_id = 0;
 
     /**
-     * @brief whether the listener is configured to authenticate peers
+     * @brief Whether the listener is configured to authenticate peers.
      */
     bool authenticating;
 

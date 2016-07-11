@@ -64,14 +64,15 @@ public:
      *
      * Register and initialize a new VM connection. Set up and initialize RDP listener.
      *
-     * @returns bool Success
      * @param uuid UUID of incoming VM connection.
      * @param vm_id Unique ID of VM fb.
+     *
+     * @returns bool Success
      */
     bool RegisterNewVM(std::string uuid, int vm_id);
 
     /**
-     * @brief Unregisters VM
+     * @brief Unregisters VM.
      *
      * Removes listener port from open ports list and removes the shared_ptr wrapping the RDPListener object.
      * Everything will self-destruct as that shared_ptr goes out of scope, so be careful when you invoke this!
@@ -94,7 +95,7 @@ public:
     void sendMessage(std::vector<uint16_t> vec, std::string uuid);
 
     /**
-     * @brief queues outgoing message
+     * @brief Queues outgoing message.
      *
      * @param item QueueItem to be sent.
      */
@@ -102,7 +103,7 @@ public:
 
 protected:
     /**
-     * @brief starting port for new connections
+     * @brief Starting port for new connections.
      */
     uint16_t starting_port;
 

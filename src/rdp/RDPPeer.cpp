@@ -946,7 +946,6 @@ int RDPPeer::SendSurfaceUpdate()
 	rdpSettings* settings;
 	rdpMuxSurface* surface;
 	RECTANGLE_16 surfaceRect;
-	RECTANGLE_16 invalidRect;
 	const RECTANGLE_16* extents;
 	PeerContext* ctx = (PeerContext*) client->context;
 
