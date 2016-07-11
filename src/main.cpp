@@ -75,7 +75,7 @@ static void on_method_call(const Glib::RefPtr<Gio::DBus::Connection>& conn,
         std::string uuid = uuid_variant.get();
 
         // TODO: flesh this code out, needs to be more comprehensive for when we bump protocol
-        if (ver != 2) {
+        if (ver != 3) {
             invocation->return_value(
                     Glib::VariantContainerBase::create_tuple(
                             Glib::Variant<Glib::ustring>::create("")
@@ -114,7 +114,7 @@ static void on_property_call(Glib::VariantBase& property,
     if (property_name == "SupportedProtocolVersions") {
         // pretty inextensible way to do this, but since we have no other versions, it'll suffice for now.
         auto versions = std::vector<int>();
-        versions.push_back(2);
+        versions.push_back(3);
         auto ver_var = Glib::Variant<std::vector<int>>::create(versions);
         property = ver_var;
     }
