@@ -28,6 +28,9 @@ file(GLOB_RECURSE QEMU_RDP_SOURCE_FILES
 
 add_executable(rdpmux ${QEMU_RDP_SOURCE_FILES})
 
+# dependencies
+OPTION(ENABLE_FREERDP_NIGHTLY "Use FreeRDP nightly to build" OFF)
+
 find_package(RT REQUIRED)
 target_link_libraries(rdpmux ${RT_LIBRARIES})
 
@@ -64,11 +67,20 @@ if(GIOMM_FOUND)
     target_link_libraries(rdpmux ${GIOMM_LIBRARY})
 endif(GIOMM_FOUND)
 
-find_package(FreeRDP REQUIRED)
-if(FREERDP_FOUND)
-    include_directories(${FREERDP_INCLUDE_DIRS})
-    target_link_libraries(rdpmux ${FREERDP_LIBRARIES})
-endif(FREERDP_FOUND)
+if (ENABLE_FREERDP_NIGHTLY)
+    find_package(FreeRDPNightly REQUIRED)
+    if(FREERDPNIGHTLY_FOUND)
+        include_directories(${FREERDPNIGHTLY_INCLUDE_DIRS})
+        target_link_libraries(rdpmux ${FREERDPNIGHTLY_LIBRARIES})
+    endif(FREERDPNIGHTLY_FOUND)
+else(ENABLE_FREERDP_NIGHTLY)
+    find_package(FreeRDP REQUIRED)
+    if(FREERDP_FOUND)
+        include_directories(${FREERDP_INCLUDE_DIRS})
+        target_link_libraries(rdpmux ${FREERDP_LIBRARIES})
+    endif(FREERDP_FOUND)
+endif(ENABLE_FREERDP_NIGHTLY)
+
 
 find_package(Msgpack REQUIRED)
 if(MSGPACK_FOUND)
