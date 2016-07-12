@@ -9,8 +9,9 @@ RDPMux depends on any version of the following libraries:
 * Msgpack-C++
 * Pixman
 * Boost.Program_options
+* ZeroMQ
 
-RDPMux also depends on FreeRDP. RDPMux has been tested and is known to work with [FreeRDP commit be8f8f72387e7878717b6f04c9a87f999449d20d](https://github.com/FreeRDP/FreeRDP/tree/be8f8f72387e7878717b6f04c9a87f999449d20d). This is essentially a commit picked at random that we froze on for development work, since the FreeRDP project hasn't formally released a new version in almost three years. Theoretically, any later commit should work just as well, though the FreeRDP project is still in the middle of changing their API so there is no guarantee.
+RDPMux also depends on FreeRDP 2.0. Since there hasn't been a formal release of FreeRDP 2.0 yet, RDPMux has been built and tested against what is essentially the FreeRDP project's git master. Once FreeRDP formally releases v2.0, we will depend on explicit versions as per usual. 
 
 Note: RDPMux will definitely _not_ build on any 1.x release of FreeRDP. 
 

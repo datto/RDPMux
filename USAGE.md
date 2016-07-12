@@ -22,6 +22,14 @@ This manual page is meant to be a terse overview of the various flags and switch
 `--certificate-dir=<path to directory containing certificates>`
 
     Specify the path to a directory containing certificates for the RDP connection. This option is mandatory.
+    
+`--no-auth`, `-n`
+
+    Specify that listeners should not be started with NLA authentication by default. Will use TLS instead.
+    
+`--port`, `-p`
+
+    Specify port for listeners to start listening on. Listeners will try to intelligently re-use ports as much as possible. Defaults to 3901.
         
 `-h, --help`
 
@@ -29,7 +37,7 @@ This manual page is meant to be a terse overview of the various flags and switch
     
 ## USAGE
 
-Using RDPMux is pretty simple. Start the service, and then start your RDPMux-aware hypervisor/other backend service. The two programs should automatically negotiate their internal connection, and RDPMux will start an RDP listener. Connect to this listener and you should have an RDP session. 
+Using RDPMux is pretty simple. Start the service, and then start your RDPMux-aware backend service. The two programs should automatically negotiate their internal connection, and RDPMux will start an RDP listener. Connect to this listener and you should have an RDP session. 
 
 ## CONSIDERATIONS
 

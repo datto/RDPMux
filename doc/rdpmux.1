@@ -1,7 +1,7 @@
 .\" generated with Ronn/v0.7.3
 .\" http://github.com/rtomayko/ronn/tree/0.7.3
 .
-.TH "RDPMUX" "1" "February 2016" "Datto Inc" ""
+.TH "RDPMUX" "1" "July 2016" "Datto Inc" ""
 .
 .SH "NAME"
 \fBrdpmux\fR \- RDP server multiplexer designed to work with virtual machines
@@ -45,6 +45,32 @@ Specify the path to a directory containing certificates for the RDP connection\.
 .IP "" 0
 .
 .P
+\fB\-\-no\-auth\fR, \fB\-n\fR
+.
+.IP "" 4
+.
+.nf
+
+Specify that listeners should not be started with NLA authentication by default\. Will use TLS instead\.
+.
+.fi
+.
+.IP "" 0
+.
+.P
+\fB\-\-port\fR, \fB\-p\fR
+.
+.IP "" 4
+.
+.nf
+
+Specify port for listeners to start listening on\. Listeners will try to intelligently re\-use ports as much as possible\. Defaults to 3901\.
+.
+.fi
+.
+.IP "" 0
+.
+.P
 \fB\-h, \-\-help\fR
 .
 .IP "" 4
@@ -58,7 +84,7 @@ Show brief help output\.
 .IP "" 0
 .
 .SH "USAGE"
-Using RDPMux is pretty simple\. Start the service, and then start your RDPMux\-aware hypervisor/other backend service\. The two programs should automatically negotiate their internal connection, and RDPMux will start an RDP listener\. Connect to this listener and you should have an RDP session\.
+Using RDPMux is pretty simple\. Start the service, and then start your RDPMux\-aware backend service\. The two programs should automatically negotiate their internal connection, and RDPMux will start an RDP listener\. Connect to this listener and you should have an RDP session\.
 .
 .SH "CONSIDERATIONS"
 The RDPMux service (and anything that wants to talk to it!) requires access to the DBus system bus in order to work properly\. While it doesn\'t need to be run as root, please ensure that RDPMUx is run in such a way that it has access to the system bus\.
