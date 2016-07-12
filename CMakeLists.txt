@@ -40,12 +40,6 @@ if(ZEROMQ_FOUND)
     target_link_libraries(rdpmux ${ZEROMQ_LIBRARIES})
 endif(ZEROMQ_FOUND)
 
-find_package(ZMQ REQUIRED)
-if(ZMQ_FOUND)
-    include_directories(rdpmux ${ZMQ_INCLUDE_DIRS})
-    target_link_libraries(rdpmux ${ZMQ_LIBRARIES})
-endif(ZMQ_FOUND)
-
 find_package(GLibmm REQUIRED)
 if (GLIBMM2_FOUND)
     include_directories(${GLIBMM2_INCLUDE_DIR})
