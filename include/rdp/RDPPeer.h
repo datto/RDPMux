@@ -113,6 +113,8 @@ public:
      * @brief Recreates the surface object associated with this framebuffer and sends a full display
      * update to the client.
      *
+     * @param displayWidth New display width.
+     * @param displayHeight New display height.
      * @param f The display buffer pixel format.
      */
     void FullDisplayUpdate(uint32_t displayWidth, uint32_t displayHeight, pixman_format_code_t f);

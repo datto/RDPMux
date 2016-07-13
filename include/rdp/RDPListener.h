@@ -63,7 +63,7 @@ public:
     /**
      * @brief Processes outgoing messages from the RDP client to the VM.
      *
-     * @param sbuf Serialized msgpack object containing update.
+     * @param vec Array of outgoing values.
      */
     void processOutgoingMessage(std::vector<uint16_t> vec);
 
@@ -72,7 +72,7 @@ public:
      *
      * Serves as an entry point for incoming messages from the VM via the RDPServerWorker.
      *
-     * @param vec Deserialized vector of uint32_ts comprising the message
+     * @param rvec Deserialized vector of uint32_ts comprising the message
      */
     void processIncomingMessage(std::vector<uint32_t> rvec);
 
@@ -99,7 +99,6 @@ public:
      *
      * @param msg The deserialized display switch message. Should be guaranteed by caller to be from a message of type
      * DISPLAY_SWITCH.
-     * @param vm_id The ID of the VM.
      */
     void processDisplaySwitch(std::vector<uint32_t> msg);
 

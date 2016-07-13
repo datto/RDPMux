@@ -41,7 +41,7 @@ public:
      * a VM has registered using RegisterNewVM();
      *
      * @param port The starting port for new RDP listener connections
-     * @param socket_path File path to the ZeroMQ socket.
+     * @param auth Whether to start listeners with NLA authentication enabled.
      */
     RDPServerWorker(uint16_t port, bool auth);
 
@@ -89,8 +89,8 @@ public:
     /**
      * @brief Send a message to the VM with the identity espoused by the UUID.
      *
-     * @param sbuf msgpack::sbuffer object containing the serialized data
-     * @param uuid the UUID of the VM to send this message to
+     * @param vec Vector containing the data to be serialized.
+     * @param uuid The UUID of the VM to send this message to.
      */
     void sendMessage(std::vector<uint16_t> vec, std::string uuid);
 
