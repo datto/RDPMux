@@ -4,7 +4,7 @@ Description=RDP server multiplexer designed to work with virtual machines
 [Service]
 Type=dbus
 BusName=org.RDPMux.RDPMux
-ExecStart=/usr/bin/rdpmux --certificate-dir=/var/lib/rdpmux
+ExecStart=/usr/bin/rdpmux --certificate-dir=/var/lib/rdpmux --no-auth
 Restart=always
 
 [Install]
