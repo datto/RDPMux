@@ -97,6 +97,7 @@ RDPListener::~RDPListener()
         std::unique_lock<std::mutex> lock(stopMutex);
         stop = true;
     }
+    dbus_conn->unregister_object(registered_id);
     freerdp_listener_free(listener);
     WSACleanup();
 }
@@ -170,7 +171,6 @@ void RDPListener::RunServer()
     }
 
     parent->UnregisterVM(this->uuid, this->port); // this will trigger destruction of the RDPListener object.
-    dbus_conn->unregister_object(registered_id);
 }
 
 void RDPListener::processOutgoingMessage(std::vector<uint16_t> vec)
