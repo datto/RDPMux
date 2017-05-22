@@ -318,8 +318,8 @@ RDPPeer::RDPPeer(freerdp_peer *client, RDPListener *listener) : client(client),
 	client->settings->PrivateKeyFile = _strdup(key_path.c_str());
 	client->settings->RdpKeyFile = _strdup(key_path.c_str());
 
-    // authentication method
-    if (GetListener()->Authenticating()) {
+    // authentication method, check whether credential path is set and authenticating is true
+    if (GetListener()->Authenticating() && !GetListener()->GetCredentialPath().empty()) {
         client->settings->NlaSecurity = TRUE;
         client->settings->TlsSecurity = FALSE;
     } else {
