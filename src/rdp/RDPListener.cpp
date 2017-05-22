@@ -72,7 +72,8 @@ RDPListener::RDPListener(std::string uuid, int vm_id, uint16_t port, RDPServerWo
                                                                      uuid(uuid),
                                                                      vm_id(vm_id),
                                                                      authenticating(auth),
-                                                                     targetFPS(30)
+                                                                     targetFPS(30),
+                                                                     credential_path()
 {
     WTSRegisterWtsApiFunctionTable(FreeRDP_InitWtsApi());
     stop = false;
@@ -322,6 +323,11 @@ size_t RDPListener::GetWidth()
 size_t RDPListener::GetHeight()
 {
     return this->height;
+}
+
+std::string RDPListener::GetCredentialPath()
+{
+    return credential_path;
 }
 
 bool RDPListener::Authenticating()

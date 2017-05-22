@@ -148,6 +148,13 @@ public:
     bool Authenticating();
 
     /**
+     * @brief Retrieve the currently set credential path.
+     *
+     * Will be an empty string if no path is set.
+     */
+    std::string GetCredentialPath();
+
+    /**
      * @brief The freerdp_listener struct this object manages.
      *
      * This is the actual FreeRDP listener struct that holds most of the real internal state of the RDP listener itself.
