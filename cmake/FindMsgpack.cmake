@@ -21,11 +21,25 @@ FIND_PATH(MSGPACK_INCLUDE_DIR msgpack.hpp
         /usr/local/include/msgpack
         )
 
-FIND_LIBRARY(MSGPACK_LIBRARY NAMES msgpack PATHS
+FIND_LIBRARY(MSGPACK_LIBRARY NAMES msgpackc PATHS
         /usr/lib
+        /usr/lib64
         /usr/local/lib
+        /usr/local/lib64
         /usr/local/lib/msgpack
+        /usr/local/lib64/msgpack
         )
+
+IF (NOT MSGPACK_LIBRARY)
+    FIND_LIBRARY(MSGPACK_LIBRARY NAMES msgpack PATHS
+            /usr/lib
+            /usr/lib64
+            /usr/local/lib
+            /usr/local/lib64
+            /usr/local/lib/msgpack
+            /usr/local/lib64/msgpack
+            )
+ENDIF(NOT MSGPACK_LIBRARY)
 
 # Copy the results to the output variables.
 IF (MSGPACK_INCLUDE_DIR AND MSGPACK_LIBRARY)

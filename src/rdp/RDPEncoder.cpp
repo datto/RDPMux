@@ -124,9 +124,9 @@ int rdpmux_encoder_init_rfx(rdpMuxEncoder* encoder)
 	encoder->rfx->height = encoder->height;
 
 	if (encoder->format == PIXEL_FORMAT_XRGB32)
-		rfx_context_set_pixel_format(encoder->rfx, RDP_PIXEL_FORMAT_R8G8B8A8);
+		rfx_context_set_pixel_format(encoder->rfx, PIXEL_FORMAT_RGBA32);
 	else
-		rfx_context_set_pixel_format(encoder->rfx, RDP_PIXEL_FORMAT_B8G8R8A8);
+		rfx_context_set_pixel_format(encoder->rfx, PIXEL_FORMAT_BGRA32);
 
 	encoder->fps = 16;
 	encoder->maxFps = 32;
@@ -154,9 +154,9 @@ int rdpmux_encoder_init_nsc(rdpMuxEncoder* encoder)
 		return -1;
 
 	if (encoder->format == PIXEL_FORMAT_XRGB32)
-		nsc_context_set_pixel_format(encoder->nsc, RDP_PIXEL_FORMAT_R8G8B8A8);
+		nsc_context_set_pixel_format(encoder->nsc, PIXEL_FORMAT_RGBA32);
 	else
-		nsc_context_set_pixel_format(encoder->nsc, RDP_PIXEL_FORMAT_B8G8R8A8);
+		nsc_context_set_pixel_format(encoder->nsc, PIXEL_FORMAT_RGBA32);
 
 	encoder->fps = 16;
 	encoder->maxFps = 32;

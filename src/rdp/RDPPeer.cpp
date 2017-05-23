@@ -202,7 +202,7 @@ static BOOL peer_synchronize_event(rdpInput* input, uint32_t flags)
 	return TRUE;
 }
 
-static BOOL peer_refresh_rect(rdpContext* context, uint8_t count, RECTANGLE_16* areas)
+static BOOL peer_refresh_rect(rdpContext* context, uint8_t count, const RECTANGLE_16* areas)
 {
 	RECTANGLE_16 invalidRect;
 	PeerContext* ctx = (PeerContext*) context;
@@ -226,7 +226,7 @@ static BOOL peer_refresh_rect(rdpContext* context, uint8_t count, RECTANGLE_16* 
 	return TRUE;
 }
 
-static BOOL peer_suppress_output(rdpContext *context, uint8_t allow, RECTANGLE_16 *areas)
+static BOOL peer_suppress_output(rdpContext *context, uint8_t allow, const RECTANGLE_16 *areas)
 {
 	if (allow > 0) {
 		VLOG(2) << "PEER: Client requested to restore output";
@@ -400,7 +400,6 @@ void RDPPeer::CloseClient()
     std::unique_lock<std::mutex> lock(stopMutex);
     stop = true;
 }
-
 
 void *RDPPeer::PeerThread(void *arg)
 {
@@ -620,7 +619,8 @@ int RDPPeer::SendSurfaceBits(int nXSrc, int nYSrc, int nWidth, int nHeight)
 	surface = ctx->surface;
 
 	freerdp_image_copy(surface->data, ctx->encodeFormat, surface->scanline, nXSrc, nYSrc,
-		nWidth, nHeight, (BYTE*) shm_buffer_region, ctx->sourceFormat, buf_width * ctx->sourceBpp, nXSrc, nYSrc, NULL);
+		nWidth, nHeight, (BYTE*) shm_buffer_region, ctx->sourceFormat, buf_width * ctx->sourceBpp, nXSrc, nYSrc,
+			   NULL, FREERDP_FLIP_NONE);
 
 	pSrcData = surface->data;
 	nSrcStep = surface->scanline;
@@ -761,7 +761,8 @@ int RDPPeer::SendBitmapUpdate(int nXSrc, int nYSrc, int nWidth, int nHeight)
 	surface = ctx->surface;
 
 	freerdp_image_copy(surface->data, ctx->encodeFormat, surface->scanline, nXSrc, nYSrc,
-		nWidth, nHeight, (BYTE*) shm_buffer_region, ctx->sourceFormat, buf_width * ctx->sourceBpp, nXSrc, nYSrc, NULL);
+		nWidth, nHeight, (BYTE*) shm_buffer_region, ctx->sourceFormat, buf_width * ctx->sourceBpp, nXSrc, nYSrc,
+			   NULL, FREERDP_FLIP_NONE);
 
 	maxUpdateSize = settings->MultifragMaxRequestSize;
 
@@ -852,7 +853,7 @@ int RDPPeer::SendBitmapUpdate(int nXSrc, int nYSrc, int nWidth, int nHeight)
 			}
 			else
 			{
-				int dstSize;
+				uint32_t dstSize;
 
 				buffer = encoder->grid[k];
 				data = &pSrcData[(bitmap->destTop * nSrcStep) + (bitmap->destLeft * 4)];
