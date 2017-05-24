@@ -16,38 +16,13 @@
 
 #include "rdp/RDPListener.h"
 #include "RDPServerWorker.h"
-#include "rdp/RDPPeer.h"
-#include <freerdp/channels/channels.h>
 #include <fcntl.h>
 #include <msgpack/object.hpp>
 #include <sys/mman.h>
+#include <rdp/RDPPeer.h>
+#include "rdp/subsystem.h"
 
 thread_local RDPListener *rdp_listener_object = NULL;
-
-/**
- * @brief starts up the run loop of an RDPPeer connection.
- *
- * This function marshals the arguments needed to start up an RDPPeer thread, and passes them into the new thread
- * function. The thread created runs RDPPeer::PeerThread as a detached thread. For reasons lost to the mists of time,
- * this function actually uses the winPR API to start the thread instead of straight pthreads.
- *
- * @returns Success of the thread creation
- *
- * @param instance The freerdp_listener struct containing the listener's state.
- * @param client The newly-initialized freerdp_peer struct containing all the state needed for the peer connection.
- */
-BOOL StartPeerLoop(freerdp_listener *instance, freerdp_peer *client)
-{
-    HANDLE hThread;
-
-    // get our args together, and start the thread
-    auto arg_tuple = new std::tuple<freerdp_peer*, RDPListener *>(client, rdp_listener_object);
-    if (!(hThread = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE) RDPPeer::PeerThread, (void *) arg_tuple, 0, NULL))) {
-        return FALSE;
-    }
-    CloseHandle(hThread);
-    return TRUE;
-}
 
 Glib::ustring RDPListener::introspection_xml =
         "<node>"
@@ -78,18 +53,12 @@ RDPListener::RDPListener(std::string uuid, int vm_id, uint16_t port, RDPServerWo
     WTSRegisterWtsApiFunctionTable(FreeRDP_InitWtsApi());
     stop = false;
 
-    listener = freerdp_listener_new();
+    shadow_subsystem_set_entry(RDPMux_ShadowSubsystemEntry);
+    server = shadow_server_new();
 
-    if (!listener) {
-        LOG(FATAL) << "LISTENER " << this << ": Listener didn't alloc properly, exiting.";
+    if (!server) {
+        LOG(FATAL) << "LISTENER " << this << ": Shadow server didn't alloc properly, exiting.";
     }
-
-    if (WSAStartup(MAKEWORD(2,2), &wsadata) != 0) {
-        freerdp_listener_free(listener);
-        throw std::runtime_error("WSAStartup failed");
-    }
-
-    listener->PeerAccepted = StartPeerLoop;
 }
 
 RDPListener::~RDPListener()
@@ -99,78 +68,58 @@ RDPListener::~RDPListener()
         stop = true;
     }
     dbus_conn->unregister_object(registered_id);
-    freerdp_listener_free(listener);
+    shadow_server_free(server);
     WSACleanup();
 }
 
 void RDPListener::RunServer()
 {
-    void *connections[32];
-    DWORD count = 0;
-
+    int status = 0;
+    DWORD exitCode = 0;
     rdp_listener_object = this; // store a reference to the object in thread-local storage for the peer connections
 
     // dbus setup
+    Glib::RefPtr<Gio::DBus::NodeInfo> introspection_data;
     const Gio::DBus::InterfaceVTable vtable(sigc::mem_fun(this, &RDPListener::on_method_call),
                                             sigc::mem_fun(this, &RDPListener::on_property_call));
+    // create server name
+    Glib::ustring dbus_name = "/org/RDPMux/RDPListener/";
+    // sanitize uuid before creating dbus object
+    std::string tmp = uuid;
+    tmp.erase(std::remove(tmp.begin(), tmp.end(), '-'), tmp.end());
+    dbus_name += tmp;
 
-    Glib::RefPtr<Gio::DBus::NodeInfo> introspection_data;
+    this->server->settings->NlaSecurity = FALSE;
+
+    if (shadow_server_init(this->server) < 0) {
+        VLOG(1) << "COULD NOT INIT SHADOW SERVER!!!!!";
+        goto cleanup;
+    }
+
     try {
         introspection_data = Gio::DBus::NodeInfo::create_for_xml(introspection_xml);
     } catch (const Glib::Error &ex) {
         LOG(WARNING) << "LISTENER " << this << ": Unable to create introspection data.";
-        return;
+        goto cleanup;
     }
-
-    // create listener name
-    Glib::ustring dbus_name = "/org/RDPMux/RDPListener/";
-    // sanitize uuid before creating dbus object
-    std::string thing = uuid;
-    thing.erase(std::remove(thing.begin(), thing.end(), '-'), thing.end());
-    dbus_name += thing;
-
     registered_id = dbus_conn->register_object(dbus_name, introspection_data->lookup_interface(), vtable);
 
-    if (listener->Open(listener, NULL, port)) {
-        VLOG(1) << "LISTENER " << this << ": Listener started successfully.";
-
-        count = listener->GetEventHandles(listener, connections, 32);
-
-        if (count < 1) {
-            throw std::runtime_error("Failed to get event handles.");
-        }
-
-        /* Enter main server loop */
-        while (1) {
-
-            // check if we are terminating
-            {
-                std::unique_lock<std::mutex> lock(stopMutex);
-                if (stop) break;
-            }
-
-            size_t status = WaitForMultipleObjects(count, connections, false, 5);
-
-            if (status == WAIT_FAILED) {
-                VLOG(1) << "LISTENER " << this << ": Wait failed.";
-                break;
-            }
-
-            /* Validate incoming TCP/IP connections */
-            if (listener->CheckFileDescriptor(listener) != TRUE) {
-                VLOG(1) << "LISTENER " << this << ": Failed to validate TCP/IP connection.";
-                break;
-            }
-        }
-    }
-    VLOG(1) << "LISTENER " << this << ": Main loop exited";
-
-    listener->Close(listener);
-
-    for (auto peer : peerlist) {
-        peer->CloseClient();
+    // Shadow server run loop
+    if ((status = shadow_server_start(this->server)) < 0) {
+        VLOG(1) << "COULD NOT START SHADOW SERVER!!!!!";
+        goto cleanup;
     }
 
+    WaitForSingleObject(this->server->thread, INFINITE);
+
+    if (!GetExitCodeThread(this->server->thread, &exitCode)) {
+        status = -1;
+    } else {
+        status = exitCode;
+    }
+
+    VLOG(1) << "LISTENER " << this << ": Main loop exited, exit code " << status;
+cleanup:
     parent->UnregisterVM(this->uuid, this->port); // this will trigger destruction of the RDPListener object.
 }
 
@@ -214,23 +163,23 @@ void RDPListener::processDisplayUpdate(std::vector<uint32_t> msg)
              w = msg.at(3),
              h = msg.at(4);
 
-    //VLOG(1) << "LISTENER " << this << ": Now taking lock on peerlist to send display update message";
-    {
-        std::lock_guard<std::mutex> lock(peerlist_mutex);
-        if (peerlist.size() > 0) {
-            //VLOG(2) << std::dec << "LISTENER " << this << ": Now processing display update message [(" << (int) x << ", " << (int) y << ") " << (int) w << ", " << (int) h << "]";
-            std::for_each(peerlist.begin(), peerlist.end(), [=](RDPPeer *peer) {
-                peer->PartialDisplayUpdate(x, y, w, h);
-                targetFPS = (targetFPS + peer->GetCaptureFps()) / 2;
-
-                if (targetFPS < 3)
-                	targetFPS = 3;
-
-                if (targetFPS > 30)
-                	targetFPS = 30;
-            });
-        }
-    }
+    VLOG(1) << "LISTENER " << this << ": Now processing display update message";
+//    {
+//        std::lock_guard<std::mutex> lock(peerlist_mutex);
+//        if (peerlist.size() > 0) {
+//            //VLOG(2) << std::dec << "LISTENER " << this << ": Now processing display update message [(" << (int) x << ", " << (int) y << ") " << (int) w << ", " << (int) h << "]";
+//            std::for_each(peerlist.begin(), peerlist.end(), [=](RDPPeer *peer) {
+//                peer->PartialDisplayUpdate(x, y, w, h);
+//                targetFPS = (targetFPS + peer->GetCaptureFps()) / 2;
+//
+//                if (targetFPS < 3)
+//                	targetFPS = 3;
+//
+//                if (targetFPS > 30)
+//                	targetFPS = 30;
+//            });
+//        }
+//    }
     //VLOG(1) << "LISTENER " << this << ": Lock released successfully! Continuing.";
 
     // send back display update complete message
@@ -240,12 +189,30 @@ void RDPListener::processDisplayUpdate(std::vector<uint32_t> msg)
     vec.push_back(targetFPS);
 
     parent->sendMessage(vec, uuid);
-    LOG(INFO) << "LISTENER " << this << ": Sent ack to QEMU process: new target framerate " << targetFPS;
+//    LOG(INFO) << "LISTENER " << this << ": Sent ack to QEMU process: new target framerate " << targetFPS;
 }
 
-pixman_format_code_t RDPListener::GetFormat()
+std::tuple<int, int, int> RDPListener::GetRDPFormat()
 {
-    return format;
+    switch (this->format)
+    {
+        case PIXMAN_r8g8b8a8:
+        case PIXMAN_r8g8b8x8:
+            return std::make_tuple(PIXEL_FORMAT_XBGR32, PIXEL_FORMAT_XBGR32, 4);
+        case PIXMAN_a8r8g8b8:
+        case PIXMAN_x8r8g8b8:
+            return std::make_tuple(PIXEL_FORMAT_XRGB32, PIXEL_FORMAT_XRGB32, 4);
+        case PIXMAN_r8g8b8:
+            return std::make_tuple(PIXEL_FORMAT_BGR24, PIXEL_FORMAT_XRGB32, 3);
+        case PIXMAN_b8g8r8:
+            return std::make_tuple(PIXEL_FORMAT_RGB24, PIXEL_FORMAT_XRGB32, 3);
+        case PIXMAN_r5g6b5:
+             return std::make_tuple(PIXEL_FORMAT_BGR16, PIXEL_FORMAT_XRGB32, 2);
+        case PIXMAN_x1r5g5b5:
+             return std::make_tuple(PIXEL_FORMAT_ABGR15, PIXEL_FORMAT_XRGB32, 2);
+        default:
+            return std::make_tuple(-1, -1, -1);
+    }
 }
 
 void RDPListener::processDisplaySwitch(std::vector<uint32_t> msg)
@@ -285,27 +252,27 @@ void RDPListener::processDisplaySwitch(std::vector<uint32_t> msg)
     this->format = displayFormat;
 
     // send full display update to all peers, but only if there are peers connected
-    {
-        std::lock_guard<std::mutex> lock(peerlist_mutex);
-        if (peerlist.size() > 0) {
-            std::for_each(peerlist.begin(), peerlist.end(), [=](RDPPeer *peer) {
-                VLOG(3) << "LISTENER " << this << ": Sending peer update region request now";
-                peer->FullDisplayUpdate(displayWidth, displayHeight, displayFormat);
-            });
-        }
-    }
+//    {
+//        std::lock_guard<std::mutex> lock(peerlist_mutex);
+//        if (peerlist.size() > 0) {
+//            std::for_each(peerlist.begin(), peerlist.end(), [=](RDPPeer *peer) {
+//                VLOG(3) << "LISTENER " << this << ": Sending peer update region request now";
+//                peer->FullDisplayUpdate(displayWidth, displayHeight, displayFormat);
+//            });
+//        }
+//    }
 
     VLOG(2) << "LISTENER " << this << ": Display switch processed successfully!";
 }
 
 void RDPListener::registerPeer(RDPPeer *peer)
 {
-    // thread-safe member function to register a peer with the parent listener object. The listener uses the peer
+    // thread-safe member function to register a peer with the parent server object. The server uses the peer
     // registered via this method to pass down display update events for encoding and transmission to all RDP clients.
-    std::lock_guard<std::mutex> lock(peerlist_mutex);
-    peerlist.push_back(peer);
-    peer->PartialDisplayUpdate(0, 0, this->width, this->height);
-    VLOG(2) << "Registered peer " << peer;
+//    std::lock_guard<std::mutex> lock(peerlist_mutex);
+//    peerlist.push_back(peer);
+//    peer->PartialDisplayUpdate(0, 0, this->width, this->height);
+//    VLOG(2) << "Registered peer " << peer;
 }
 
 void RDPListener::unregisterPeer(RDPPeer *peer)

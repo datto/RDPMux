@@ -111,7 +111,7 @@ void RDPServerWorker::UnregisterVM(std::string uuid, uint16_t port)
 {
     std::lock_guard<std::mutex> lock(container_lock);
     ports.erase(port);
-    listener_map.erase(uuid); // rip listener
+    listener_map.erase(uuid); // rip server
 }
 
 void RDPServerWorker::sendMessage(std::vector<uint16_t> vec, std::string uuid)
@@ -188,7 +188,7 @@ void RDPServerWorker::run()
                 msgpack::unpacked unpacked;
                 msgpack::unpack(&unpacked, data.data(), data.size());
 
-                // deserialize msgpack message and pass to correct listener
+                // deserialize msgpack message and pass to correct server
                 try {
                     // so these two lines have to be in this order. if listener_map.at() fails, it'll skip the
                     // connection_map line, which will silently create and/or update if nothing exists.

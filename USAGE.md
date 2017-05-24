@@ -37,7 +37,7 @@ This manual page is meant to be a terse overview of the various flags and switch
     
 ## USAGE
 
-Using RDPMux is pretty simple. Start the service, and then start your RDPMux-aware backend service. The two programs should automatically negotiate their internal connection, and RDPMux will start an RDP listener. Connect to this listener and you should have an RDP session. 
+Using RDPMux is pretty simple. Start the service, and then start your RDPMux-aware backend service. The two programs should automatically negotiate their internal connection, and RDPMux will start an RDP server. Connect to this server and you should have an RDP session.
 
 ## CONSIDERATIONS
 
