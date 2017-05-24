@@ -170,7 +170,7 @@ static BOOL peer_activate(freerdp_peer *client)
 
 	VLOG(3) << std::dec << "PEER: client->settings->Desktop{Width,Height}: " << DesktopWidth << " " << DesktopHeight;
 
-	ctx->peerObj->FullDisplayUpdate(DesktopWidth, DesktopHeight, ctx->peerObj->GetListener()->GetFormat());
+//	ctx->peerObj->FullDisplayUpdate(DesktopWidth, DesktopHeight, ctx->peerObj->GetListener()->GetRDPFormat());
 
 	return TRUE;
 }

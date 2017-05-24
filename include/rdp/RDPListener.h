@@ -23,6 +23,7 @@
 #include <pixman.h>
 #include <msgpack/sbuffer.hpp>
 #include <winpr/winsock.h>
+#include <freerdp/server/shadow.h>
 
 class RDPPeer; // I'm very bad at organizing C++ code.
 class RDPServerWorker; // I continue to get worse at organizing C++ code.
@@ -39,7 +40,7 @@ class RDPListener
 {
 public:
     /**
-     * @brief Initializes the listener, given a nanomsg socket to communicate through.
+     * @brief Initializes the listener, given a ZeroMQ socket to communicate through.
      *
      * @param uuid The UUID of the VM associated with this listener.
      * @param vm_id The unique ID of the VM's framebuffer.
@@ -134,11 +135,11 @@ public:
     size_t GetHeight();
 
     /**
-     * @brief Gets the pixel format of the framebuffer.
+     * @brief Gets the RDP pixel format of the framebuffer.
      *
-     * @returns The pixel format of the framebuffer.
+     * @returns The RDP pixel format of the framebuffer.
      */
-    pixman_format_code_t GetFormat();
+    std::tuple<int, int, int> GetRDPFormat();
 
     /**
      * @brief See whether the listener was configured to authenticate connections
@@ -160,7 +161,7 @@ public:
      * This is the actual FreeRDP listener struct that holds most of the real internal state of the RDP listener itself.
      * This class is essentially an overgrown wrapper for this object.
      */
-    freerdp_listener *listener;
+    rdpShadowServer *server;
 
     /**
      * @brief The shared memory region containing the framebuffer. Always 32 MB big.
