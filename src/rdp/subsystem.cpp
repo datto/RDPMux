@@ -11,31 +11,40 @@ extern thread_local RDPListener *rdp_listener_object;
 
 void rdpmux_synchronize_event(rdpmuxShadowSubsystem *system, rdpShadowClient *client, UINT32 flags)
 {
-    WLog_INFO(TAG, "SYNCHRONIZE -- Flags: %#04x (%u)", flags, flags);
+    WLog_DBG(TAG, "SYNCHRONIZE -- Flags: %#04x (%u)", flags, flags);
 }
 
 void rdpmux_unicode_keyboard_event(rdpmuxShadowSubsystem *subsystem,
                                                    rdpShadowClient *client, UINT16 flags, UINT16 code)
 {
-    WLog_INFO(TAG, "KEYBOARD UNICODE -- Flags: %#04x (%u), code: %#04x (%u)", flags, flags, code, code);
+    WLog_DBG(TAG, "KEYBOARD UNICODE -- Flags: %#04x (%u), code: %#04x (%u)", flags, flags, code, code);
 }
 
 void rdpmux_extended_mouse_event(rdpmuxShadowSubsystem *subsystem,
                                                  rdpShadowClient *client, UINT16 flags, UINT16 x, UINT16 y)
 {
-    WLog_INFO(TAG, "MOUSE EXTENDED -- Flags: %#04x (%u), x: %u, y: %u", flags, flags, x, y);
+    WLog_DBG(TAG, "MOUSE EXTENDED -- Flags: %#04x (%u), x: %u, y: %u", flags, flags, x, y);
 }
 
-void rdpmux_keyboard_event(rdpmuxShadowSubsystem *subsystem,
+void rdpmux_keyboard_event(rdpmuxShadowSubsystem *system,
                                            rdpShadowClient *client, UINT16 flags, UINT16 code)
 {
-    WLog_INFO(TAG, "KEYBOARD -- Flags: %#04x (%u), code: %#04x (%u)", flags, flags, code, code);
+    std::vector<uint16_t> vec;
+    vec.push_back(KEYBOARD);
+    vec.push_back(code);
+    vec.push_back(flags);
+    system->listener->processOutgoingMessage(vec);
 }
 
-void rdpmux_mouse_event(rdpmuxShadowSubsystem *subsystem,
+void rdpmux_mouse_event(rdpmuxShadowSubsystem *system,
                                         rdpShadowClient *client, UINT16 flags, UINT16 x, UINT16 y)
 {
-    WLog_INFO(TAG, "MOUSE -- Flags: %#04x (%u), x: %u, y: %u", flags, flags, x, y);
+    std::vector<uint16_t> vec;
+    vec.push_back(MOUSE);
+    vec.push_back(x);
+    vec.push_back(y);
+    vec.push_back(flags);
+    system->listener->processOutgoingMessage(vec);
 }
 
 int rdpmux_subsystem_process_message(rdpmuxShadowSubsystem *system, wMessage *message)
@@ -63,18 +72,16 @@ void rdpmux_subsystem_update_frame(rdpmuxShadowSubsystem *system, BOOL full)
     RECTANGLE_16 invalidRect, surfaceRect;
     const RECTANGLE_16 *extents = NULL;
 
-    if (ArrayList_Count(server->clients) < 1) {
+    if (ArrayList_Count(server->clients) < 1)
         return;
-    }
 
     auto formats = system->listener->GetRDPFormat();
     auto source_format = std::get<0>(formats);
     auto dest_format = std::get<1>(formats);
     auto source_bpp = std::get<2>(formats);
 
-    if (source_format < 0) {
+    if (source_format < 0 || dest_format < 0 || source_bpp < 0)
         return; // invalid buffer type, don't make the copy
-    }
 
     // for now, force fulls no matter what
 
@@ -99,7 +106,6 @@ void rdpmux_subsystem_update_frame(rdpmuxShadowSubsystem *system, BOOL full)
         auto width = extents->right - extents->left;
         auto height = extents->bottom - extents->top;
         WLog_DBG(TAG, "Invalid region: x = %d, y = %d, width = %d, height = %d", x, y, width, height);
-
 
         freerdp_image_copy(surface->data,                             /* destination surface */
                            dest_format,                               /* destination surface pixel format */
@@ -231,7 +237,7 @@ void *rdpmux_subsystem_thread(rdpmuxShadowSubsystem *system)
     frametime = GetTickCount64() + interval;
 
     while(1) {
-        status = WaitForMultipleObjects(nCount, events, FALSE, 0);
+        status = WaitForMultipleObjects(nCount, events, FALSE, 5);
 
         if (WaitForSingleObject(stopEvent, 0) == WAIT_OBJECT_0) {
             WLog_INFO(TAG, "Server is stopping");
