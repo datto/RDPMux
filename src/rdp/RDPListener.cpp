@@ -76,7 +76,7 @@ void RDPListener::RunServer()
 {
     int status = 0;
     DWORD exitCode = 0;
-    rdp_listener_object = this; // store a reference to the object in thread-local storage for the peer connections
+    rdp_listener_object = this; // store a reference to the object in thread-local storage for the shadow server
 
     // dbus setup
     Glib::RefPtr<Gio::DBus::NodeInfo> introspection_data;
