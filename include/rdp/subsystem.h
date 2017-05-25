@@ -11,6 +11,8 @@ typedef struct rdpmux_shadow_subsystem {
     RDP_SHADOW_SUBSYSTEM_COMMON();
 
     RDPListener *listener;
+    size_t src_width;
+    size_t src_height;
 } rdpmuxShadowSubsystem;
 
 FREERDP_API int RDPMux_ShadowSubsystemEntry(RDP_SHADOW_ENTRY_POINTS *pEntryPoints);
