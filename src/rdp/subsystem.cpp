@@ -87,8 +87,8 @@ void rdpmux_subsystem_update_frame(rdpmuxShadowSubsystem *system, BOOL full)
 
     invalidRect.left = 0;
     invalidRect.top = 0;
-    invalidRect.right = (UINT16) system->listener->GetWidth();
-    invalidRect.bottom = (UINT16) system->listener->GetHeight();
+    invalidRect.right = (UINT16) system->listener->Width();
+    invalidRect.bottom = (UINT16) system->listener->Height();
 
     surfaceRect.top = 0;
     surfaceRect.left = 0;
@@ -110,20 +110,19 @@ void rdpmux_subsystem_update_frame(rdpmuxShadowSubsystem *system, BOOL full)
         freerdp_image_copy(surface->data,                             /* destination surface */
                            dest_format,                               /* destination surface pixel format */
                            surface->scanline,                         /* destination surface scanline */
-                           extents->left,                             /* x coordinate of top left corner of region to copy */
-                           extents->top,                              /* y coordinate of top left corner of region to copy */
-                           extents->right - extents->left,            /* x coordinate of bottom right corner of region to copy */
-                           extents->bottom - extents->top,            /* y coordinate of bottom right corner of region to copy */
+                           x,                                         /* x coordinate of top left corner of region to copy */
+                           y,                                         /* y coordinate of top left corner of region to copy */
+                           width,                                     /* x coordinate of bottom right corner of region to copy */
+                           height,                                    /* y coordinate of bottom right corner of region to copy */
                            (BYTE *) system->listener->shm_buffer,     /* source surface to copy data from */
                            source_format,                             /* source surface pixel format */
                            system->src_width * source_bpp,            /* scanline of source surface */
-                           extents->left,                             /* x coord of top left corner of dirty part of source buffer */
-                           extents->top,                              /* y coord of top left corner of dirty part of source buffer */
+                           x,                                         /* x coord of top left corner of dirty part of source buffer */
+                           y,                                         /* y coord of top left corner of dirty part of source buffer */
                            NULL,                                      /* GDI palette to use */
                            FREERDP_FLIP_NONE                          /* transformations to apply */
         );
         shadow_subsystem_frame_update((rdpShadowSubsystem *) system);
-        region16_clear(&(surface->invalidRegion));
     }
 }
 
@@ -144,7 +143,7 @@ int rdpmux_subsystem_enum_monitors(MONITOR_DEF *monitors, int maxMonitors)
 
 BOOL rdpmux_subsystem_check_resize(rdpmuxShadowSubsystem *system)
 {
-    if (system->src_width != system->listener->GetWidth() || system->src_height != system->listener->GetHeight()) {
+    if (system->src_width != system->listener->Width() || system->src_height != system->listener->Height()) {
         /* screen size changed */
         MONITOR_DEF *monitor = &(system->monitors[0]);
         MONITOR_DEF *virtualScreen = &(system->virtualScreen);
@@ -152,13 +151,13 @@ BOOL rdpmux_subsystem_check_resize(rdpmuxShadowSubsystem *system)
         /* update monitor definition */
         monitor->left = 0;
         monitor->left = 0;
-        monitor->bottom = system->listener->GetHeight();
-        monitor->right = system->listener->GetWidth();
+        monitor->bottom = system->listener->Height();
+        monitor->right = system->listener->Width();
 
         /* resize */
         shadow_screen_resize(system->server->screen);
-        system->src_height = system->listener->GetHeight();
-        system->src_width = system->listener->GetWidth();
+        system->src_height = system->listener->Height();
+        system->src_width = system->listener->Width();
 
         /* update virtual screen */
         virtualScreen->top = 0;
@@ -178,21 +177,18 @@ int rdpmux_subsystem_init(rdpmuxShadowSubsystem *system)
 
     virtualScreen->left = 0;
     virtualScreen->top = 0;
-    virtualScreen->right = system->listener->GetWidth();
-    virtualScreen->bottom = system->listener->GetHeight();
+    virtualScreen->right = system->listener->Width();
+    virtualScreen->bottom = system->listener->Height();
     virtualScreen->flags = 1;
 
-    system->src_height = system->listener->GetHeight();
-    system->src_width = system->listener->GetWidth();
-
-    WLog_DBG("subsystem selectedMonitor is %d\n", system->selectedMonitor);
+    system->src_height = system->listener->Height();
+    system->src_width = system->listener->Width();
 
     return 1;
 }
 
 int rdpmux_subsystem_uninit(rdpmuxShadowSubsystem *system)
 {
-    WLog_INFO(TAG, "Uninit rdpmux subsystem");
     return 1;
 }
 
