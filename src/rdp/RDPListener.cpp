@@ -19,7 +19,6 @@
 #include <fcntl.h>
 #include <msgpack/object.hpp>
 #include <sys/mman.h>
-#include <rdp/RDPPeer.h>
 #include "rdp/subsystem.h"
 
 thread_local RDPListener *rdp_listener_object = NULL;
@@ -89,8 +88,6 @@ void RDPListener::RunServer()
     tmp.erase(std::remove(tmp.begin(), tmp.end(), '-'), tmp.end());
     dbus_name += tmp;
 
-    this->server->settings->NlaSecurity = FALSE;
-
     if (shadow_server_init(this->server) < 0) {
         VLOG(1) << "COULD NOT INIT SHADOW SERVER!!!!!";
         goto cleanup;
@@ -104,8 +101,11 @@ void RDPListener::RunServer()
     }
     registered_id = dbus_conn->register_object(dbus_name, introspection_data->lookup_interface(), vtable);
 
+    this->server->settings->NlaSecurity = FALSE;
+    this->server->port = this->port;
+
     // Shadow server run loop
-    if ((status = shadow_server_start(this->server)) < 0) {
+    if (shadow_server_start(this->server) < 0) {
         VLOG(1) << "COULD NOT START SHADOW SERVER!!!!!";
         goto cleanup;
     }
@@ -164,23 +164,6 @@ void RDPListener::processDisplayUpdate(std::vector<uint32_t> msg)
              h = msg.at(4);
 
     VLOG(1) << "LISTENER " << this << ": Now processing display update message";
-//    {
-//        std::lock_guard<std::mutex> lock(peerlist_mutex);
-//        if (peerlist.size() > 0) {
-//            //VLOG(2) << std::dec << "LISTENER " << this << ": Now processing display update message [(" << (int) x << ", " << (int) y << ") " << (int) w << ", " << (int) h << "]";
-//            std::for_each(peerlist.begin(), peerlist.end(), [=](RDPPeer *peer) {
-//                peer->PartialDisplayUpdate(x, y, w, h);
-//                targetFPS = (targetFPS + peer->GetCaptureFps()) / 2;
-//
-//                if (targetFPS < 3)
-//                	targetFPS = 3;
-//
-//                if (targetFPS > 30)
-//                	targetFPS = 30;
-//            });
-//        }
-//    }
-    //VLOG(1) << "LISTENER " << this << ": Lock released successfully! Continuing.";
 
     // send back display update complete message
     std::vector<uint16_t> vec;
@@ -251,48 +234,20 @@ void RDPListener::processDisplaySwitch(std::vector<uint32_t> msg)
     this->height = displayHeight;
     this->format = displayFormat;
 
-    // send full display update to all peers, but only if there are peers connected
-//    {
-//        std::lock_guard<std::mutex> lock(peerlist_mutex);
-//        if (peerlist.size() > 0) {
-//            std::for_each(peerlist.begin(), peerlist.end(), [=](RDPPeer *peer) {
-//                VLOG(3) << "LISTENER " << this << ": Sending peer update region request now";
-//                peer->FullDisplayUpdate(displayWidth, displayHeight, displayFormat);
-//            });
-//        }
-//    }
-
     VLOG(2) << "LISTENER " << this << ": Display switch processed successfully!";
 }
 
-void RDPListener::registerPeer(RDPPeer *peer)
-{
-    // thread-safe member function to register a peer with the parent server object. The server uses the peer
-    // registered via this method to pass down display update events for encoding and transmission to all RDP clients.
-//    std::lock_guard<std::mutex> lock(peerlist_mutex);
-//    peerlist.push_back(peer);
-//    peer->PartialDisplayUpdate(0, 0, this->width, this->height);
-//    VLOG(2) << "Registered peer " << peer;
-}
-
-void RDPListener::unregisterPeer(RDPPeer *peer)
-{
-    std::lock_guard<std::mutex> lock(peerlist_mutex);
-    auto pos = std::find(peerlist.begin(), peerlist.end(), peer);
-    peerlist.erase(pos);
-}
-
-size_t RDPListener::GetWidth()
+size_t RDPListener::Width()
 {
     return this->width;
 }
 
-size_t RDPListener::GetHeight()
+size_t RDPListener::Height()
 {
     return this->height;
 }
 
-std::string RDPListener::GetCredentialPath()
+std::string RDPListener::CredentialPath()
 {
     return credential_path;
 }
@@ -340,7 +295,7 @@ void RDPListener::on_property_call(Glib::VariantBase &property,
     if (property_name == "Port") {
         property = Glib::Variant<uint16_t>::create(port);
     } else if (property_name == "NumConnectedPeers") {
-        property = Glib::Variant<uint32_t>::create(peerlist.size());
+        property = Glib::Variant<uint32_t>::create(ArrayList_Count(this->server->clients));
     } else if (property_name == "RequiresAuthentication") {
         property = Glib::Variant<bool>::create(authenticating);
     }
