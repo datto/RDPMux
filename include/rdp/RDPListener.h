@@ -104,35 +104,18 @@ public:
     void processDisplaySwitch(std::vector<uint32_t> msg);
 
     /**
-     * @brief Registers a peer with the RDPListener.
-     *
-     * Registers a peer with its parent listener in a thread-safe manner. The listener passes down display events
-     * to the registered peers for encoding and transmission to their connected clients.
-     *
-     * @param peer Peer to be registered.
-     */
-    void registerPeer(RDPPeer *peer);
-
-    /**
-     * @brief Unregisters a Peer.
-     *
-     * @param peer Peer to be un-registered.
-     */
-    void unregisterPeer(RDPPeer *peer);
-
-    /**
      * @brief Gets the width of the framebuffer.
      *
      * @returns The width of the framebuffer.
      */
-    size_t GetWidth();
+    size_t Width();
 
     /**
      * @brief Gets the height of the framebuffer.
      *
      * @returns The height of the framebuffer.
      */
-    size_t GetHeight();
+    size_t Height();
 
     /**
      * @brief Gets the RDP pixel format of the framebuffer.
@@ -153,7 +136,7 @@ public:
      *
      * Will be an empty string if no path is set.
      */
-    std::string GetCredentialPath();
+    std::string CredentialPath();
 
     /**
      * @brief The freerdp_listener struct this object manages.
@@ -169,8 +152,6 @@ public:
     void *shm_buffer;
 
 private:
-
-    WSADATA wsadata;
 
     /**
      * @brief dbus introspection xml
@@ -203,16 +184,6 @@ private:
      * @brief Unique ID of VM framebuffer.
      */
     int vm_id;
-
-    /**
-     * @brief Mutex guarding access to the peer list.
-     */
-    std::mutex peerlist_mutex;
-
-    /**
-     * @brief List of registered peers.
-     */
-    std::vector<RDPPeer *> peerlist;
 
     /**
      * @brief The width of the framebuffer. Accessed via GetWidth().
