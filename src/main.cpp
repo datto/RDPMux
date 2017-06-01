@@ -45,15 +45,20 @@ namespace {
 
 /* Signal handlers */
 
-void handle_SIGINT(int signal)
+void handle_SIGINT(int sig)
 {
-    // send shutdown signal to RDPServerWorker
+    // clean up RDPServerWorker instance, this will trigger cleanup of all listeners
     LOG(INFO) << "SIGINT received, cleaning up";
-    broker->~RDPServerWorker();
+    if (broker)
+        broker.reset();
+
+    // re-raise signal
+    signal(sig, SIG_DFL);
+    raise(sig);
 }
 
 // handles all method call invocations. Basically if you have more than one
-// you need to use a giant if/else if tree to handle them. Uglyyyyy.
+// you need to use a giant if/else if tree to handle them. Ugly.
 static void on_method_call(const Glib::RefPtr<Gio::DBus::Connection>& conn,
         const Glib::ustring&, // sender
         const Glib::ustring&, // object_path
