@@ -28,6 +28,9 @@ file(GLOB_RECURSE QEMU_RDP_SOURCE_FILES
 
 add_executable(rdpmux ${QEMU_RDP_SOURCE_FILES})
 
+# pull in lib
+add_subdirectory("./lib")
+
 # dependencies
 OPTION(ENABLE_FREERDP_NIGHTLY "Use FreeRDP nightly to build" OFF)
 
