@@ -1,0 +1,10 @@
+prefix=@CMAKE_INSTALL_PREFIX@
+exec_prefix=@CMAKE_INSTALL_PREFIX@
+libdir=@CMAKE_INSTALL_PREFIX@/@CMAKE_INSTALL_LIBDIR@
+includedir=@CMAKE_INSTALL_PREFIX@/@CMAKE_INSTALL_INCLUDEDIR@
+
+Name: librdpmux
+Description: Low-level utility library to interact with virtual machines
+Version: @MUX_VERSION@
+Libs: -lrdpmux -lglib-2.0 -lpixman-1
+Cflags: -I${includedir} @GLIB2_PKGCONFIG_DIRS@ -I@PIXMAN_INCLUDE_DIR@
