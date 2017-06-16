@@ -3,7 +3,7 @@
 %global _dbus_conf_dir %{_sysconfdir}/dbus-1/system.d
 
 Name:           rdpmux
-Version:        0.4.0
+Version:        0.5.0
 Release:        1%{?dist}
 Summary:        RDP server multiplexer designed to work with virtual machines
 License:        ASL 2.0
@@ -24,6 +24,7 @@ BuildRequires:  boost-devel
 BuildRequires:  pixman-devel
 BuildRequires:  libsigc++20-devel
 BuildRequires:  zeromq-devel >= 4.1.0
+BuildRequires:  czmq-devel >= 3.0.0
 
 Requires(post):   openssl
 Requires(post):   systemd
@@ -31,10 +32,28 @@ Requires(preun):  systemd
 Requires(postun): systemd
 
 %description
-RDPMux provides multiplexed RDP servers for virtual machines.
+%{origname} provides multiplexed RDP servers for virtual machines.
 
-It communicates with VMs via librdpmux, which implements the
+It communicates with VMs via lib%{name}, which implements the
 communication protocol and exposes an API for hypervisors to hook into.
+
+%package -n        lib%{name}
+Summary:           Library for implementing hypervisor-side functionality
+
+%description -n    lib%{name}
+This library provides a defined interface to interact with
+virtual machine guests on a very low level. It provides access
+to the current framebuffer of the VM, and to programmatically
+send and receive keyboard and mouse events.
+
+%package -n        lib%{name}-devel
+Summary:           Development files for lib%{name}-devel
+Requires:          lib%{name}%{?_isa} = %{version}-%{release}
+
+%description -n    lib%{name}-devel
+The lib%{name}-devel package contains configuration and header
+files for developing applications that use lib%{name}.
+
 
 %prep
 %setup -qn %{origname}-%{version}
@@ -76,6 +95,9 @@ fi
 %postun
 %systemd_postun_with_restart rdpmux.service
 
+%post -n lib%{name} -p /sbin/ldconfig
+%postun -n lib%{name} -p /sbin/ldconfig
+
 %files
 %{_bindir}/rdpmux
 %{_unitdir}/rdpmux.service
@@ -85,7 +107,19 @@ fi
 %ghost %{_sharedstatedir}/rdpmux/server.key
 %ghost %{_sharedstatedir}/rdpmux/server.crt
 
+%files -n lib%{name}
+%license LICENSE.LIB
+%{_libdir}/*.so.*
+
+%files -n lib%{name}-devel
+%{_includedir}/*.h
+%{_libdir}/*.so
+%{_libdir}/pkgconfig/*.pc
+
 %changelog
+* Tue Jun 13 2017 Sri Ramanujam <sramanujam@datto.com> - 0.5.0-1
+- Bump to 0.5.0
+
 * Tue Jul 12 2016 Neal Gompa <ngompa@datto.com> - 0.4.0-1
 - Bump to 0.4.0
 

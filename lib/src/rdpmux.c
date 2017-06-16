@@ -302,6 +302,18 @@ __PUBLIC uint32_t mux_display_refresh()
  * Loops
  */
 
+__PUBLIC void *mux_out_loop_2()
+{
+    struct timespec five_ms;
+    struct timeval now;
+    int rt;
+
+    gettimeofday(&now, NULL);
+
+    five_ms.tv_sec = now.tv_sec;
+    five_ms.tv_nsec = (now.tv_usec + 5000UL) * 1000UL;
+}
+
 /**
  * @func Outgoing message loop. It is designed to be run as a thread runloop, and should be dispatched as a runnable
  * inside a separate thread during library initialization. Its function prototype matches what pthreads et al. expect.
@@ -310,32 +322,49 @@ __PUBLIC uint32_t mux_display_refresh()
  * region and return an ack message to the library. This ensures that the library and server are not accessing the shared
  * memory concurrently.
  */
-__PUBLIC void mux_out_loop()
+__PUBLIC void *mux_out_loop()
 {
-    while(true) {
+    bool stopping = false;
+    struct timespec five_ms;
+    five_ms.tv_sec = 0;
+    five_ms.tv_nsec = 5000000;
 
+    while (!stopping) {
         // check if exiting
         pthread_mutex_lock(&display->stop_lock);
-        if (display->stop) break;
+        if (display->stop)
+            stopping = true;
         pthread_mutex_unlock(&display->stop_lock);
+        if (stopping)
+            goto loop_cleanup;
 
         pthread_mutex_lock(&display->shm_lock);
         while (display->out_update == NULL) {
-
             // check if exiting
             pthread_mutex_lock(&display->stop_lock);
             if (display->stop) {
-                goto cleanup;
+                mux_printf("we are exiting!");
+                stopping = true;
             }
             pthread_mutex_unlock(&display->stop_lock);
+            if (stopping) {
+                mux_printf("loop is stopping!");
+                goto loop_cleanup;
+            }
 
-            pthread_cond_wait(&display->update_cond, &display->shm_lock);
+            int status = pthread_cond_timedwait(&display->update_cond, &display->shm_lock, &five_ms);
+            if (status == 0) {
+                break;
+            }
         }
 
         // check if exiting
         pthread_mutex_lock(&display->stop_lock);
-        if (display->stop) break;
+        if (display->stop)
+            stopping = true;
         pthread_mutex_unlock(&display->stop_lock);
+        if (stopping)
+            goto loop_cleanup;
 
         // place the update on the outgoing queue
         mux_queue_enqueue(&display->outgoing_messages, display->out_update);
@@ -344,20 +373,39 @@ __PUBLIC void mux_out_loop()
 
         // block on the signal.
         mux_printf("Now waiting on ack from other process");
-        pthread_cond_wait(&display->shm_cond, &display->shm_lock);
+        while (true) {
+            // check if exiting
+            pthread_mutex_lock(&display->stop_lock);
+            if (display->stop) {
+                stopping = true;
+            }
+            pthread_mutex_unlock(&display->stop_lock);
+            if (stopping) {
+                mux_printf("loop is stopping!");
+                goto loop_cleanup;
+            }
+
+            int status = pthread_cond_timedwait(&display->shm_cond, &display->shm_lock, &five_ms);
+            if (status == 0) {
+                break;
+            }
+        }
 
         // check if exiting
         pthread_mutex_lock(&display->stop_lock);
-        if (display->stop) break;
+        if (display->stop)
+            stopping = true;
         pthread_mutex_unlock(&display->stop_lock);
+        if (stopping)
+            goto loop_cleanup;
 
         mux_printf("Ack received! Unlocking shm region and continuing\n----------");
+loop_cleanup:
         pthread_mutex_unlock(&display->shm_lock);
     }
-cleanup:
-    pthread_mutex_unlock(&display->shm_lock);
     mux_printf("Now exiting out loop!");
-    return;
+    pthread_mutex_unlock(&display->shm_lock);
+    return NULL;
 }
 
 /**
@@ -424,10 +472,12 @@ __PUBLIC void *mux_mainloop(void *arg)
 
                 // send shutdown msg
                 mux_send_shutdown_msg();
-
                 mux_printf("sent shutdown message");
-
                 stopping = true;
+
+                pthread_mutex_lock(&display->stop_lock);
+                display->stop = true;
+                pthread_mutex_unlock(&display->stop_lock);
             }
         } else {
             nbytes = mux_0mq_recv_msg(&buf);
@@ -447,7 +497,6 @@ __PUBLIC void *mux_mainloop(void *arg)
 
     // cleanup
     mux_printf("Cleaning up!");
-    pthread_mutex_unlock(&display->stop_lock);
 
     // clean up queues
     mux_queue_clear(&display->outgoing_messages);
@@ -456,12 +505,12 @@ __PUBLIC void *mux_mainloop(void *arg)
     if (!zpoller_terminated(display->zmq.poller)) {
         zpoller_destroy(&display->zmq.poller);
     }
-//    zsock_set_linger(display->zmq.socket, 1);
-    zsock_disconnect(display->zmq.socket, "%s", display->zmq.path);
     zsock_destroy(&display->zmq.socket);
-    // signal to wake up other thread
-    pthread_cond_signal(&display->update_cond);
-    pthread_cond_signal(&display->shm_cond);
+    mux_printf("zsock_destroy has been called!");
+
+    zctx_interrupted = 1;
+    zsys_interrupted = 1;
+
     return NULL;
 }
 

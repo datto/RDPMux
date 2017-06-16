@@ -50,7 +50,6 @@ RDPListener::RDPListener(std::string uuid, int vm_id, uint16_t port, RDPServerWo
                                                                      credential_path()
 {
     WTSRegisterWtsApiFunctionTable(FreeRDP_InitWtsApi());
-    stop = false;
 
     shadow_subsystem_set_entry(RDPMux_ShadowSubsystemEntry);
     server = shadow_server_new();
@@ -62,10 +61,7 @@ RDPListener::RDPListener(std::string uuid, int vm_id, uint16_t port, RDPServerWo
 
 RDPListener::~RDPListener()
 {
-    {
-        std::unique_lock<std::mutex> lock(stopMutex);
-        stop = true;
-    }
+    shadow_server_stop(this->server);
     dbus_conn->unregister_object(registered_id);
     shadow_server_free(server);
     WSACleanup();
@@ -132,23 +128,25 @@ void RDPListener::processOutgoingMessage(std::vector<uint16_t> vec)
 void RDPListener::processIncomingMessage(std::vector<uint32_t> rvec)
 {
     // we filter by what type of message it is
-//    LOG(INFO) << "Processing message " << rvec;
     if (rvec[0] == DISPLAY_UPDATE) {
-        //VLOG(1) << "LISTENER " << this << ": processing display update event now";
         processDisplayUpdate(rvec);
     } else if (rvec[0] == DISPLAY_SWITCH) {
         VLOG(2) << "LISTENER " << this << ": processing display switch event now";
         processDisplaySwitch(rvec);
     } else if (rvec[0] == SHUTDOWN) {
         VLOG(2) << "LISTENER " << this << ": Shutdown event received!";
-        {
-            std::unique_lock<std::mutex> lock(stopMutex);
-            stop = true;
-        }
+        shadow_server_stop(this->server);
+        parent->UnregisterVM(this->uuid, this->port);
     } else {
         // what the hell have you sent me
         LOG(WARNING) << "Invalid message type sent.";
     }
+}
+
+std::tuple<uint32_t, uint32_t, uint32_t, uint32_t> RDPListener::GetDirtyRegion()
+{
+    std::lock_guard<std::mutex> lock(dimMutex);
+    return std::make_tuple(x, y, w, h);
 }
 
 void RDPListener::processDisplayUpdate(std::vector<uint32_t> msg)
@@ -158,12 +156,15 @@ void RDPListener::processDisplayUpdate(std::vector<uint32_t> msg)
     // AROUND SUCH THAT THIS FUNCTION IS RUN IN A SEPARATE THREAD, YOU'LL NEED TO FIGURE OUT A BETTER WAY TO SEND
     // MESSAGES! I recommend a queue, they're super swell.
 
-    uint32_t x = msg.at(1),
-             y = msg.at(2),
-             w = msg.at(3),
-             h = msg.at(4);
+    {
+        std::lock_guard<std::mutex> lock(dimMutex);
+        this->x = msg.at(1);
+        this->y = msg.at(2);
+        this->w = msg.at(3);
+        this->h = msg.at(4);
+    }
 
-    VLOG(1) << "LISTENER " << this << ": Now processing display update message";
+    VLOG(3) << "LISTENER " << this << ": Now processing display update message" << x << "x" << y << " (" << w << "x" << h << ")";
 
     // send back display update complete message
     std::vector<uint16_t> vec;

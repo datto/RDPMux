@@ -20,8 +20,9 @@
  * @param obj The object path of the DBus service
  * @param out_path The path to the VM's private communication socket returned by the DBus service.
  * @param id The ID of the VM.
+ * @param port The port to use to connect. Set it to 0 for auto port selection.
  */
-__PUBLIC bool mux_get_socket_path(const char *name, const char *obj, char **out_path, int id)
+__PUBLIC bool mux_get_socket_path(const char *name, const char *obj, char **out_path, int id, uint16_t port)
 {
     if (!obj)
         return false;
@@ -104,7 +105,7 @@ proto_found:
     }
 
     if (!mux_org_rdpmux_rdpmux_call_register_sync(proxy, id, RDPMUX_PROTOCOL_VERSION, display->uuid,
-                                                  out_path, NULL, &error)) {
+                                                  port, out_path, NULL, &error)) {
         mux_printf_error("could not retrieve socket path: %s", error->message);
         g_error_free(error);
         return false;

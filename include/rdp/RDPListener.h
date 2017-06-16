@@ -125,6 +125,13 @@ public:
     std::tuple<int, int, int> GetRDPFormat();
 
     /**
+     * @brief Gets the dimensions of the dirty region in a thread-safe manner.
+     *
+     * @returns The dimensions in this order: x, y, w, h.
+     */
+    std::tuple<uint32_t, uint32_t, uint32_t, uint32_t> GetDirtyRegion();
+
+    /**
      * @brief See whether the listener was configured to authenticate connections
      *
      * @returns authentication configuration status
@@ -186,6 +193,29 @@ private:
     int vm_id;
 
     /**
+     * @brief mutex guarding dirty region dimensions.
+     */
+    std::mutex dimMutex;
+
+    /**
+     * @brief The x coordinate of the current dirty region
+     */
+    uint32_t x;
+    /**
+     * @brief The y coordinate of the current dirty region
+     */
+    uint32_t y;
+
+    /**
+     * @brief The width of the current dirty region
+     */
+    uint32_t w;
+    /**
+     * @brief The height of the current dirty region
+     */
+    uint32_t h;
+
+    /**
      * @brief The width of the framebuffer. Accessed via GetWidth().
      */
     size_t width;
@@ -200,14 +230,6 @@ private:
      */
     pixman_format_code_t format;
 
-    /**
-     * @brief Mutex guarding stop.
-     */
-    std::mutex stopMutex;
-    /**
-     * @brief Flag to be set when the listener needs to clean up and exit.
-     */
-    bool stop;
     /**
      * @brief DBus id.
      */

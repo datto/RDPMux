@@ -99,7 +99,6 @@ __PUBLIC bool mux_connect(const char *path)
 {
     display->zmq.path = path;
     display->zmq.socket = zsock_new_dealer(path);
-    zsys_handler_set(mux_handler);
     if (display->zmq.socket == NULL) {
         mux_printf_error("0mq socket creation failed");
         return false;
