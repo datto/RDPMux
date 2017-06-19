@@ -7,7 +7,6 @@
 #include "common.h"
 #include "msgpack.h"
 #include "0mq.h"
-#include "queue.h"
 
 InputEventCallbacks callbacks;
 MuxDisplay *display;
