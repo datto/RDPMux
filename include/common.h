@@ -26,6 +26,7 @@
  * @brief enum of message types.
  */
 enum message_type {
+    MSGTYPE_INVALID = 0,
     DISPLAY_UPDATE,
     DISPLAY_SWITCH,
     MOUSE,

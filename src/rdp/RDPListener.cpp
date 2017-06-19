@@ -165,15 +165,6 @@ void RDPListener::processDisplayUpdate(std::vector<uint32_t> msg)
     }
 
     VLOG(3) << "LISTENER " << this << ": Now processing display update message" << x << "x" << y << " (" << w << "x" << h << ")";
-
-    // send back display update complete message
-    std::vector<uint16_t> vec;
-    vec.push_back(DISPLAY_UPDATE_COMPLETE);
-    vec.push_back(1);
-    vec.push_back(targetFPS);
-
-    parent->sendMessage(vec, uuid);
-//    LOG(INFO) << "LISTENER " << this << ": Sent ack to QEMU process: new target framerate " << targetFPS;
 }
 
 std::tuple<int, int, int> RDPListener::GetRDPFormat()
