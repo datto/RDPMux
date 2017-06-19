@@ -83,12 +83,18 @@ void rdpmux_subsystem_update_frame(rdpmuxShadowSubsystem *system)
     if (source_format < 0 || dest_format < 0 || source_bpp < 0)
         return; // invalid buffer type, don't make the copy
 
-    // for now, force fulls no matter what
+    auto dims = system->listener->GetDirtyRegion();
+    auto x = static_cast<UINT16>(std::get<0>(dims));
+    auto y = static_cast<UINT16>(std::get<1>(dims));
+    auto w = static_cast<UINT16>(std::get<2>(dims));
+    auto h = static_cast<UINT16>(std::get<3>(dims));
 
-    invalidRect.left = 0;
-    invalidRect.top = 0;
-    invalidRect.right = (UINT16) system->listener->Width();
-    invalidRect.bottom = (UINT16) system->listener->Height();
+    invalidRect.left = x;
+    invalidRect.top = y;
+    invalidRect.right = x+w;
+    invalidRect.bottom = y+h;
+
+    WLog_DBG(TAG, "invalidRect: %d x %d (%d x %d)", x, y, w, h);
 
     surfaceRect.top = 0;
     surfaceRect.left = 0;
@@ -101,23 +107,23 @@ void rdpmux_subsystem_update_frame(rdpmuxShadowSubsystem *system)
     if (!region16_is_empty(&(surface->invalidRegion))) {
         extents = region16_extents(&(surface->invalidRegion));
 
-        auto x = extents->left;
-        auto y = extents->top;
+        auto left = extents->left;
+        auto top = extents->top;
         auto width = extents->right - extents->left;
         auto height = extents->bottom - extents->top;
 
         if (!freerdp_image_copy(surface->data,                        /* destination surface */
                            dest_format,                               /* destination surface pixel format */
                            surface->scanline,                         /* destination surface scanline */
-                           x,                                         /* x coordinate of top left corner of region to copy */
-                           y,                                         /* y coordinate of top left corner of region to copy */
+                           left,                                         /* x coordinate of top left corner of region to copy */
+                           top,                                         /* y coordinate of top left corner of region to copy */
                            width,                                     /* width of region to copy */
                            height,                                    /* height of region to copy */
                            (BYTE *) system->listener->shm_buffer,     /* source surface to copy data from */
                            source_format,                             /* source surface pixel format */
                            system->src_width * source_bpp,            /* scanline of source surface */
-                           x,                                         /* x coord of top left corner of dirty part of source buffer */
-                           y,                                         /* y coord of top left corner of dirty part of source buffer */
+                           left,                                         /* x coord of top left corner of dirty part of source buffer */
+                           top,                                         /* y coord of top left corner of dirty part of source buffer */
                            NULL,                                      /* GDI palette to use */
                            FREERDP_FLIP_NONE                          /* transformations to apply */
         )) return;

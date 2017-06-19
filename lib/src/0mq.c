@@ -73,6 +73,7 @@ int mux_0mq_send_msg(void *buf, size_t len)
     }
 
     zmsg_send(&msg, display->zmq.socket); // TODO: figure out how return code works for this
+    mux_printf("Message sent!");
 
     return len;
 }

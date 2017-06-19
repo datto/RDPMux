@@ -164,7 +164,7 @@ void RDPListener::processDisplayUpdate(std::vector<uint32_t> msg)
         this->h = msg.at(4);
     }
 
-    VLOG(3) << "LISTENER " << this << ": Now processing display update message" << x << "x" << y << " (" << w << "x" << h << ")";
+    VLOG(3) << "LISTENER " << this << ": Now processing display update message " << x << "x" << y << " (" << w << "x" << h << ")";
 }
 
 std::tuple<int, int, int> RDPListener::GetRDPFormat()

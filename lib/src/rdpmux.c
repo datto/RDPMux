@@ -220,76 +220,82 @@ __PUBLIC void mux_display_switch(pixman_image_t *surface)
  */
 __PUBLIC uint32_t mux_display_refresh()
 {
-    int pixelSize;
-    size_t x = 0;
-    size_t y = 0;
-    size_t w = 0;
-    size_t h = 0;
-    display_update *u = &(display->dirty_update.disp_update);
-    size_t surfaceWidth = pixman_image_get_width(display->surface);
-    size_t surfaceHeight = pixman_image_get_height(display->surface);
-    int bpp = PIXMAN_FORMAT_BPP(pixman_image_get_format(display->surface));
-    unsigned char* srcData = (unsigned char*) pixman_image_get_data(display->surface);
-    unsigned char* dstData = (unsigned char*) display->shm_buffer;
+    if (display->dirty_update.type == DISPLAY_UPDATE) {
+        int pixelSize;
+        size_t x = 0;
+        size_t y = 0;
+        size_t w = 0;
+        size_t h = 0;
+        display_update *u = &(display->dirty_update.disp_update);
+        size_t surfaceWidth = pixman_image_get_width(display->surface);
+        size_t surfaceHeight = pixman_image_get_height(display->surface);
+        int bpp = PIXMAN_FORMAT_BPP(pixman_image_get_format(display->surface));
+        unsigned char *srcData = (unsigned char *) pixman_image_get_data(display->surface);
+        unsigned char *dstData = (unsigned char *) display->shm_buffer;
 
-    // align the bounding box to 16 for memory alignment purposes
-    if (u->x1 % 16) {
-        u->x1 -= (u->x1 % 16);
-    }
-
-    if (u->y1 % 16) {
-        u->y1 -= (u->y1 % 16);
-    }
-
-    if (u->x2 % 16) {
-        u->x2 += 16 - (u->x2 % 16);
-    }
-
-    if (u->y2 % 16) {
-        u->y2 += 16 - (u->y2 % 16);
-    }
-
-    if (u->x2 > surfaceWidth) {
-        u->x2 = surfaceWidth;
-    }
-
-    if (u->y2 > surfaceHeight) {
-        u->y2 = surfaceHeight;
-    }
-
-    y = u->y1;
-    h = u->y2 - u->y1;
-
-    pixelSize = (bpp + 7) / 8;
-
-    // aligning the copy offsets does not yield a good performance gain,
-    // but copying contiguous memory blocks makes a huge difference.
-    // by forcing copying of full lines on buffers with the same step,
-    // we can use a single memcpy rather than one memcpy per line.
-    // this may over-copy a bit sometimes, but it's still way cheaper.
-    x = 0;
-    w = surfaceWidth;
-
-    mux_copy_pixels(dstData, w * pixelSize, x, y, w, h, srcData, w * pixelSize, x, y, bpp);
-    mux_expand_rect(&display->dirty_update, u->x1, u->y1, u->x2 - u->x1, u->y2 - u->y1);
-
-    if (pthread_mutex_trylock(&display->out_lock) == 0) {
-        //////////////////////////////////////////////////////////////////////
-        /////////////////////////////////////////////////////////////////////
-        //                     CRITICAL SECTION                            //
-        ////////////////////////////////////////////////////////////////////
-        ////////////////////////////////////////////////////////////////////
-        if (display->out_ready == false && display->out_update.type == DISPLAY_UPDATE) {
-            display->out_update = display->dirty_update;
-            display->out_ready = true;
-            display->dirty_update.type = MSGTYPE_INVALID;
+        // align the bounding box to 16 for memory alignment purposes
+        if (u->x1 % 16) {
+            u->x1 -= (u->x1 % 16);
         }
-        //////////////////////////////////////////////////////////////////////
-        /////////////////////////////////////////////////////////////////////
-        //                 END CRITICAL SECTION                            //
-        ////////////////////////////////////////////////////////////////////
-        ///////////////////////////////////////////////////////////////////
-        pthread_mutex_unlock(&display->out_lock);
+
+        if (u->y1 % 16) {
+            u->y1 -= (u->y1 % 16);
+        }
+
+        if (u->x2 % 16) {
+            u->x2 += 16 - (u->x2 % 16);
+        }
+
+        if (u->y2 % 16) {
+            u->y2 += 16 - (u->y2 % 16);
+        }
+
+        if (u->x2 > surfaceWidth) {
+            u->x2 = surfaceWidth;
+        }
+
+        if (u->y2 > surfaceHeight) {
+            u->y2 = surfaceHeight;
+        }
+
+        y = u->y1;
+        h = u->y2 - u->y1;
+
+        pixelSize = (bpp + 7) / 8;
+
+        // aligning the copy offsets does not yield a good performance gain,
+        // but copying contiguous memory blocks makes a huge difference.
+        // by forcing copying of full lines on buffers with the same step,
+        // we can use a single memcpy rather than one memcpy per line.
+        // this may over-copy a bit sometimes, but it's still way cheaper.
+        x = 0;
+        w = surfaceWidth;
+
+        mux_expand_rect(&display->dirty_update, u->x1, u->y1, u->x2 - u->x1, u->y2 - u->y1);
+
+        if (pthread_mutex_trylock(&display->out_lock) == 0) {
+            //////////////////////////////////////////////////////////////////////
+            /////////////////////////////////////////////////////////////////////
+            //                     CRITICAL SECTION                            //
+            ////////////////////////////////////////////////////////////////////
+            ////////////////////////////////////////////////////////////////////
+            mux_copy_pixels(dstData, w * pixelSize, x, y, w, h, srcData, w * pixelSize, x, y, bpp);
+
+            if (display->out_ready == false &&
+                display->out_update.type == MSGTYPE_INVALID) { // we don't have another event queued
+                display->out_update = display->dirty_update;
+                display->out_ready = true;
+                display->dirty_update.type = MSGTYPE_INVALID;
+            }
+            //////////////////////////////////////////////////////////////////////
+            /////////////////////////////////////////////////////////////////////
+            //                 END CRITICAL SECTION                            //
+            ////////////////////////////////////////////////////////////////////
+            ///////////////////////////////////////////////////////////////////
+            pthread_mutex_unlock(&display->out_lock);
+        }
+    } else {
+        mux_printf("Refresh deferred");
     }
 
     return (uint32_t) (1000 / display->framerate);
@@ -357,7 +363,7 @@ __PUBLIC void *mux_mainloop(void *arg)
         msg.buf = NULL;
         buf = NULL;
         MuxUpdate out;
-        bool ready;
+        bool ready = false;
 
         pthread_mutex_lock(&display->out_lock);
         //////////////////////////////////////////////////////////////////////
@@ -365,9 +371,10 @@ __PUBLIC void *mux_mainloop(void *arg)
         //                     CRITICAL SECTION                            //
         ////////////////////////////////////////////////////////////////////
         ////////////////////////////////////////////////////////////////////
-        out = display->out_update;
         ready = display->out_ready;
         if (ready) {
+            mux_printf("Out update is ready, typed %d!", display->out_update.type);
+            out = display->out_update;
             display->out_update.type = MSGTYPE_INVALID;
             display->out_ready = false;
         }
@@ -383,6 +390,9 @@ __PUBLIC void *mux_mainloop(void *arg)
                 len = mux_write_outgoing_msg(&out, &msg);
                 while (mux_0mq_send_msg(msg.buf, len) < 0)
                     mux_printf_error("Failed to send message");
+
+                g_free(msg.buf);
+                memset(&out, 0, sizeof(MuxUpdate));
             }
         }
 
@@ -401,7 +411,6 @@ __PUBLIC void *mux_mainloop(void *arg)
             nbytes = mux_0mq_recv_msg(&buf);
             if (nbytes > 0) {
                 // successful recv is successful
-                mux_printf("We have received a message of size %d bytes!", nbytes);
                 mux_process_incoming_msg(buf, nbytes);
             }
         }
@@ -447,7 +456,7 @@ __PUBLIC MuxDisplay *mux_init_display_struct(const char *uuid)
     display->shmem_fd = -1;
     display->uuid = NULL;
     display->zmq.socket = NULL;
-    display->framerate = 20;
+    display->framerate = 30;
 
     if (uuid != NULL) {
         if (strlen(uuid) != 36) {

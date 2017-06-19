@@ -245,6 +245,8 @@ static void mux_write_outgoing_update_msg(cmp_ctx_t *cmp, MuxUpdate *update)
 {
     display_update u = update->disp_update;
 
+    mux_printf("Writing display update message %d x %d => %d %d", u.x1, u.y1, u.x2, u.y2);
+
     if (!cmp_write_array(cmp, 5))
         mux_printf_error("Something went wrong writing array specifier");
 
@@ -273,6 +275,8 @@ static void mux_write_outgoing_update_msg(cmp_ctx_t *cmp, MuxUpdate *update)
 static void mux_write_outgoing_switch_msg(cmp_ctx_t *cmp, MuxUpdate *update)
 {
     display_switch u = update->disp_switch;
+
+    mux_printf("Writing display switch message!");
 
     if (!cmp_write_array(cmp, 4))
         mux_printf_error("Something went wrong writing array specifier");
@@ -321,12 +325,14 @@ size_t mux_write_outgoing_msg(MuxUpdate *update, nnStr *msg)
         return msg->size;
     }
 
+    mux_printf("Writing message now!");
+
     if (update->type == DISPLAY_UPDATE) {
         mux_write_outgoing_update_msg(&cmp, update);
     } else if (update->type == DISPLAY_SWITCH) {
         mux_write_outgoing_switch_msg(&cmp, update);
     } else {
-        mux_printf_error("Unknown message type queued for writing!");
+        mux_printf_error("Invalid message type queued for writing!");
     }
 
     size_t len = msg->size;
