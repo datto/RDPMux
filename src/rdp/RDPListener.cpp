@@ -62,10 +62,7 @@ RDPListener::RDPListener(std::string uuid, int vm_id, uint16_t port, RDPServerWo
 
 RDPListener::~RDPListener()
 {
-    {
-        std::unique_lock<std::mutex> lock(stopMutex);
-        stop = true;
-    }
+    shadow_server_stop(server);
     dbus_conn->unregister_object(registered_id);
     shadow_server_free(server);
     WSACleanup();
@@ -139,10 +136,8 @@ void RDPListener::processIncomingMessage(std::vector<uint32_t> rvec)
         processDisplaySwitch(rvec);
     } else if (rvec[0] == SHUTDOWN) {
         VLOG(2) << "LISTENER " << this << ": Shutdown event received!";
-        {
-            std::unique_lock<std::mutex> lock(stopMutex);
-            stop = true;
-        }
+        shadow_server_stop(server);
+        parent->UnregisterVM(this->uuid, this->port);
     } else {
         // what the hell have you sent me
         LOG(WARNING) << "Invalid message type sent.";
