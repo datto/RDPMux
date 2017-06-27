@@ -132,9 +132,7 @@ void RDPListener::processOutgoingMessage(std::vector<uint16_t> vec)
 void RDPListener::processIncomingMessage(std::vector<uint32_t> rvec)
 {
     // we filter by what type of message it is
-//    LOG(INFO) << "Processing message " << rvec;
     if (rvec[0] == DISPLAY_UPDATE) {
-        //VLOG(1) << "LISTENER " << this << ": processing display update event now";
         processDisplayUpdate(rvec);
     } else if (rvec[0] == DISPLAY_SWITCH) {
         VLOG(2) << "LISTENER " << this << ": processing display switch event now";
@@ -151,6 +149,12 @@ void RDPListener::processIncomingMessage(std::vector<uint32_t> rvec)
     }
 }
 
+std::tuple<uint32_t, uint32_t, uint32_t, uint32_t> RDPListener::GetDirtyRegion()
+{
+    std::lock_guard<std::mutex> lock(dimMutex);
+    return std::make_tuple(x, y, w, h);
+}
+
 void RDPListener::processDisplayUpdate(std::vector<uint32_t> msg)
 {
     // note that under current calling conditions, this will run in the mainloop of the RDPServerWorker. This is what
@@ -158,10 +162,13 @@ void RDPListener::processDisplayUpdate(std::vector<uint32_t> msg)
     // AROUND SUCH THAT THIS FUNCTION IS RUN IN A SEPARATE THREAD, YOU'LL NEED TO FIGURE OUT A BETTER WAY TO SEND
     // MESSAGES! I recommend a queue, they're super swell.
 
-    uint32_t x = msg.at(1),
-             y = msg.at(2),
-             w = msg.at(3),
-             h = msg.at(4);
+    {
+        std::lock_guard<std::mutex> lock(dimMutex);
+        x = msg.at(1);
+        y = msg.at(2);
+        w = msg.at(3);
+        h = msg.at(4);
+    }
 
     VLOG(1) << "LISTENER " << this << ": Now processing display update message";
 
