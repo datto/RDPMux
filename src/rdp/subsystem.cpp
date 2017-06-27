@@ -65,7 +65,7 @@ int rdpmux_subsystem_process_message(rdpmuxShadowSubsystem *system, wMessage *me
     return 1;
 }
 
-void rdpmux_subsystem_update_frame(rdpmuxShadowSubsystem *system, BOOL full)
+void rdpmux_subsystem_update_frame(rdpmuxShadowSubsystem *system)
 {
     rdpShadowServer *server = system->server;
     rdpShadowSurface *surface = server->surface;
@@ -105,15 +105,14 @@ void rdpmux_subsystem_update_frame(rdpmuxShadowSubsystem *system, BOOL full)
         auto y = extents->top;
         auto width = extents->right - extents->left;
         auto height = extents->bottom - extents->top;
-        WLog_DBG(TAG, "Invalid region: x = %d, y = %d, width = %d, height = %d", x, y, width, height);
 
-        freerdp_image_copy(surface->data,                             /* destination surface */
+        if (!freerdp_image_copy(surface->data,                        /* destination surface */
                            dest_format,                               /* destination surface pixel format */
                            surface->scanline,                         /* destination surface scanline */
                            x,                                         /* x coordinate of top left corner of region to copy */
                            y,                                         /* y coordinate of top left corner of region to copy */
-                           width,                                     /* x coordinate of bottom right corner of region to copy */
-                           height,                                    /* y coordinate of bottom right corner of region to copy */
+                           width,                                     /* width of region to copy */
+                           height,                                    /* height of region to copy */
                            (BYTE *) system->listener->shm_buffer,     /* source surface to copy data from */
                            source_format,                             /* source surface pixel format */
                            system->src_width * source_bpp,            /* scanline of source surface */
@@ -121,7 +120,7 @@ void rdpmux_subsystem_update_frame(rdpmuxShadowSubsystem *system, BOOL full)
                            y,                                         /* y coord of top left corner of dirty part of source buffer */
                            NULL,                                      /* GDI palette to use */
                            FREERDP_FLIP_NONE                          /* transformations to apply */
-        );
+        )) return;
         shadow_subsystem_frame_update((rdpShadowSubsystem *) system);
     }
 }
@@ -236,7 +235,6 @@ void *rdpmux_subsystem_thread(rdpmuxShadowSubsystem *system)
         status = WaitForMultipleObjects(nCount, events, FALSE, 5);
 
         if (WaitForSingleObject(stopEvent, 0) == WAIT_OBJECT_0) {
-            WLog_INFO(TAG, "Server is stopping");
             break;
         }
 
@@ -251,7 +249,7 @@ void *rdpmux_subsystem_thread(rdpmuxShadowSubsystem *system)
 
         if (status == WAIT_TIMEOUT || GetTickCount64() > frametime) {
             rdpmux_subsystem_check_resize(system);
-            rdpmux_subsystem_update_frame(system, FALSE);
+            rdpmux_subsystem_update_frame(system);
             interval = 1000 / system->captureFrameRate;
             frametime += interval;
         }
@@ -274,7 +272,6 @@ int rdpmux_subsystem_start(rdpmuxShadowSubsystem *system)
 
 int rdpmux_subsystem_stop(rdpmuxShadowSubsystem *system)
 {
-    WLog_DBG(TAG, "Stop rdpmux subsystem");
     return 1;
 }
 
