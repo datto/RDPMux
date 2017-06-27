@@ -20,8 +20,10 @@
 #include <msgpack/object.hpp>
 #include <sys/mman.h>
 #include "rdp/subsystem.h"
+#include <boost/program_options.hpp>
 
 thread_local RDPListener *rdp_listener_object = NULL;
+extern boost::program_options::variables_map vm;
 
 Glib::ustring RDPListener::introspection_xml =
         "<node>"
@@ -72,6 +74,9 @@ void RDPListener::RunServer()
     int status = 0;
     DWORD exitCode = 0;
     rdp_listener_object = this; // store a reference to the object in thread-local storage for the shadow server
+
+    std::string config_path = vm["config-path"].as<std::string>();
+    this->server->ConfigPath = _strdup(config_path.c_str());
 
     // dbus setup
     Glib::RefPtr<Gio::DBus::NodeInfo> introspection_data;
@@ -151,11 +156,7 @@ std::tuple<uint32_t, uint32_t, uint32_t, uint32_t> RDPListener::GetDirtyRegion()
 
 void RDPListener::processDisplayUpdate(std::vector<uint32_t> msg)
 {
-    // note that under current calling conditions, this will run in the mainloop of the RDPServerWorker. This is what
-    // allows us to call RDPServerWorker::SendMessage without worrying about thread-safety. IF YOU EVER MOVE THINGS
-    // AROUND SUCH THAT THIS FUNCTION IS RUN IN A SEPARATE THREAD, YOU'LL NEED TO FIGURE OUT A BETTER WAY TO SEND
-    // MESSAGES! I recommend a queue, they're super swell.
-
+    // note that under current calling conditions, this will run in the mainloop of the RDPServerWorker.
     {
         std::lock_guard<std::mutex> lock(dimMutex);
         this->x = msg.at(1);

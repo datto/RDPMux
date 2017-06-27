@@ -85,7 +85,7 @@ static void on_method_call(const Glib::RefPtr<Gio::DBus::Connection>& conn,
         std::string uuid = uuid_variant.get();
         uint16_t port = port_variant.get();
 
-        // TODO: flesh this code out, needs to be more comprehensive for when we bump protocol
+        // Protocol versions between lib and main application are tightly bound. Make sure to update both at the same time!
         if (ver != RDPMUX_PROTOCOL_VERSION) {
             invocation->return_value(
                     Glib::VariantContainerBase::create_tuple(
@@ -192,9 +192,9 @@ void process_options(const int argc, const char *argv[])
                         "Disable authentication for peer connections"
                 )
                 (
-                        "certificate-dir,d",
-                        po::value<std::string>()->required(),
-                        "Directory where the RDP certificates are stored."
+                        "config-path,c",
+                        po::value<std::string>()->default_value("/etc/rdpmux"),
+                        "Configuration directory path"
                 );
         po::basic_parsed_options<char> parsed = parser.options(desc).allow_unregistered().run();
         po::store(parsed, vm);
@@ -206,8 +206,8 @@ void process_options(const int argc, const char *argv[])
         }
 
         po::notify(vm);
-        std::string test_cert = vm["certificate-dir"].as<std::string>();
-        LOG(INFO) << "Certificate path is " << test_cert;
+        std::string config_path = vm["config-path"].as<std::string>();
+        LOG(INFO) << "Config path is " << config_path;
     } catch (const std::exception &ex) {
         LOG(WARNING) << ex.what();
         exit(1);
