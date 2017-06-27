@@ -297,7 +297,7 @@ __PUBLIC uint32_t mux_display_refresh()
         mux_printf("Refresh deferred");
     }
 
-    return (uint32_t) (1000 / display->framerate);
+    return (uint32_t) 30;
 }
 
 /*
@@ -305,12 +305,7 @@ __PUBLIC uint32_t mux_display_refresh()
  */
 
 /**
- * @func Outgoing message loop. It is designed to be run as a thread runloop, and should be dispatched as a runnable
- * inside a separate thread during library initialization. Its function prototype matches what pthreads et al. expect.
- *
- * This function queues outgoing messages, and blocks waiting for the server to copy data out of the shared memory
- * region and return an ack message to the library. This ensures that the library and server are not accessing the shared
- * memory concurrently.
+ * @func Unused, stubbed out until formal removal.
  */
 __PUBLIC void *mux_out_loop()
 {
@@ -400,10 +395,6 @@ __PUBLIC void *mux_mainloop(void *arg)
         if (which != display->zmq.socket)  {
             if (zpoller_terminated(poller)) {
                 mux_printf_error("Zpoller terminated!");
-
-                // send shutdown msg
-                mux_send_shutdown_msg();
-                mux_printf("sent shutdown message");
                 stopping = true;
             }
         } else {
@@ -418,10 +409,9 @@ __PUBLIC void *mux_mainloop(void *arg)
     // cleanup
     mux_printf("Cleaning up!");
 
-    // clean up socket
-    if (!zpoller_terminated(display->zmq.poller)) {
-        zpoller_destroy(&display->zmq.poller);
-    }
+    zpoller_destroy(&display->zmq.poller);
+    mux_send_shutdown_msg();
+
     zsock_destroy(&display->zmq.socket);
     mux_printf("zsock_destroy has been called!");
 
@@ -487,17 +477,9 @@ __PUBLIC void mux_register_event_callbacks(InputEventCallbacks cb)
 }
 
 /**
- * @func Should be called to safely cleanup library state. Note that ZeroMQ threads may (will) hang around for a long
- * time unless they're cleaned up by this method.
+ * @func Should be called to safely cleanup library state. Note that ZeroMQ threads may (will) hang around forever
+ * unless they're cleaned up by this method.
  */
 __PUBLIC void mux_cleanup(MuxDisplay *d)
 {
-    mux_printf("Now cleaning up librdpmux struct");
-    if (d == NULL) {
-        mux_printf_error("Invalid MuxDisplay pointer");
-        return;
-    }
-
-    // clean up uuid
-    g_free(&display->uuid);
 }
