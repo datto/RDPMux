@@ -80,9 +80,10 @@ int mux_0mq_send_msg(void *buf, size_t len)
 
 static void mux_handler(int signal_value)
 {
-    mux_printf("ZSYS signal handler called");
     zctx_interrupted = 1;
     zsys_interrupted = 1;
+    zsys_handler_reset();
+    raise(signal_value);
 }
 
 /**
@@ -98,24 +99,19 @@ static void mux_handler(int signal_value)
 __PUBLIC bool mux_connect(const char *path)
 {
     display->zmq.path = path;
-    display->zmq.socket = zsock_new_dealer(path);
+    display->zmq.socket = zsock_new_dealer(display->zmq.path);
     zsys_handler_set(mux_handler);
     if (display->zmq.socket == NULL) {
         mux_printf_error("0mq socket creation failed");
         return false;
     }
 
-    if (zsock_connect(display->zmq.socket, "%s", path) == -1) {
-        mux_printf_error("0mq connect failed");
-        return false;
-    }
-    mux_printf("Bound to %s", path);
-
     display->zmq.poller = zpoller_new(display->zmq.socket, NULL);
     if (display->zmq.poller == NULL) {
         mux_printf_error("Could not initialize socket poller");
         return false;
     }
+    mux_printf("Bound to %s", path);
 
     return true;
 }
