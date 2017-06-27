@@ -419,18 +419,6 @@ __PUBLIC void *mux_mainloop(void *arg)
 }
 
 /**
- * @func Initializes a queue.
- *
- * @param q The queue to initialize.
- */
-static void mux_init_queue(MuxMsgQueue *q)
-{
-    SIMPLEQ_INIT(&q->updates);
-    pthread_cond_init(&q->cond, NULL);
-    pthread_mutex_init(&q->lock, NULL);
-}
-
-/**
  * @func This function initializes the data structures used by the library. It also returns a pointer to the ShimDisplay
  * struct initialized, which is defined as an opaque type in the public header so that client code can't mess with it.
  *
