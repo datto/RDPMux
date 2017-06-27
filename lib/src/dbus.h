@@ -9,7 +9,7 @@
 #include "lib/connector.h"
 
 
-bool mux_get_socket_path(const char *name, const char *obj, char **out_path, int id);
+bool mux_get_socket_path(const char *name, const char *obj, char **out_path, int id, uint16_t port);
 
 
 #endif //SHIM_DBUS_H

@@ -35,6 +35,7 @@ namespace {
             "      <arg type='i' name='id' direction='in'/>"
             "      <arg type='i' name='version' direction='in' />"
             "      <arg type='s' name='uuid' direction='in' />"
+            "      <arg type='q' name='port' direction='in' />"
             "      <arg type='s' name='socket_path' direction='out'/>"
             "    </method>"
             "    <property type='ai' name='SupportedProtocolVersions' access='read' />"
@@ -71,16 +72,18 @@ static void on_method_call(const Glib::RefPtr<Gio::DBus::Connection>& conn,
         Glib::Variant<int> id_variant;
         Glib::Variant<int> ver_variant;
         Glib::Variant<std::string> uuid_variant;
+        Glib::Variant<uint16_t> port_variant;
 
         parameters.get_child(id_variant, 0);
         parameters.get_child(ver_variant, 1);
         parameters.get_child(uuid_variant, 2);
+        parameters.get_child(port_variant, 3);
         int vm_id = id_variant.get();
         int ver = ver_variant.get();
         std::string uuid = uuid_variant.get();
+        uint16_t port = port_variant.get();
 
-        // TODO: flesh this code out, needs to be more comprehensive for when we bump protocol
-        if (ver != 3) {
+        if (ver != RDPMUX_PROTOCOL_VERSION) {
             invocation->return_value(
                     Glib::VariantContainerBase::create_tuple(
                             Glib::Variant<Glib::ustring>::create("")
@@ -90,7 +93,7 @@ static void on_method_call(const Glib::RefPtr<Gio::DBus::Connection>& conn,
             return;
         }
 
-        if (!broker->RegisterNewVM(uuid, vm_id)) {
+        if (!broker->RegisterNewVM(uuid, vm_id, port)) {
             LOG(WARNING) << "VM Registration failed!";
             invocation->return_value(
                     Glib::VariantContainerBase::create_tuple(
@@ -119,7 +122,7 @@ static void on_property_call(Glib::VariantBase& property,
     if (property_name == "SupportedProtocolVersions") {
         // pretty inextensible way to do this, but since we have no other versions, it'll suffice for now.
         auto versions = std::vector<int>();
-        versions.push_back(3);
+        versions.push_back(RDPMUX_PROTOCOL_VERSION);
         auto ver_var = Glib::Variant<std::vector<int>>::create(versions);
         property = ver_var;
     }
