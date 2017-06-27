@@ -165,7 +165,7 @@ void RDPListener::processDisplayUpdate(std::vector<uint32_t> msg)
         h = msg.at(4);
     }
 
-    VLOG(1) << "LISTENER " << this << ": Now processing display update message";
+    VLOG(3) << "LISTENER " << this << ": Now processing display update message";
 
     // send back display update complete message
     std::vector<uint16_t> vec;
