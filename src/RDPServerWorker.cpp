@@ -148,6 +148,7 @@ void RDPServerWorker::queueOutgoingMessage(QueueItem item)
 
 void RDPServerWorker::run()
 {
+    int ret = -1;
     zmq::pollitem_t item = {
             (void *) zsocket,
             0,
@@ -168,10 +169,20 @@ void RDPServerWorker::run()
         while (!out_queue.isEmpty()) {
             QueueItem msg = out_queue.dequeue();
             auto vec = std::get<0>(msg);
-            sendMessage(vec, std::get<1>(msg));
+            try {
+                sendMessage(vec, std::get<1>(msg));
+            } catch (zmq::error_t &ex) {
+                LOG(WARNING) << "ZMQ EXCEPTION: " << ex.what();
+                break;
+            }
         }
 
-        int ret = zmq::poll(&item, 1, 5); // todo : determine reasonable poll interval
+        try {
+            ret = zmq::poll(&item, 1, 5); // todo : determine reasonable poll interval
+        } catch (zmq::error_t &ex) {
+            LOG(WARNING) << "ZMQ EXCEPTION: " << ex.what();
+            continue;
+        }
 
         if (ret > 0) {
 
