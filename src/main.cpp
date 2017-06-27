@@ -189,9 +189,9 @@ void process_options(const int argc, const char *argv[])
                         "Disable authentication for peer connections"
                 )
                 (
-                        "certificate-dir,d",
-                        po::value<std::string>()->required(),
-                        "Directory where the RDP certificates are stored."
+                        "config-path,c",
+                        po::value<std::string>()->default_value("/etc/rdpmux"),
+                        "Configuration directory path"
                 );
         po::basic_parsed_options<char> parsed = parser.options(desc).allow_unregistered().run();
         po::store(parsed, vm);
@@ -203,8 +203,8 @@ void process_options(const int argc, const char *argv[])
         }
 
         po::notify(vm);
-        std::string test_cert = vm["certificate-dir"].as<std::string>();
-        LOG(INFO) << "Certificate path is " << test_cert;
+        std::string config_path = vm["config-path"].as<std::string>();
+        LOG(INFO) << "Config path is " << config_path;
     } catch (const std::exception &ex) {
         LOG(WARNING) << ex.what();
         exit(1);

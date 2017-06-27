@@ -20,8 +20,10 @@
 #include <msgpack/object.hpp>
 #include <sys/mman.h>
 #include "rdp/subsystem.h"
+#include <boost/program_options.hpp>
 
 thread_local RDPListener *rdp_listener_object = NULL;
+extern boost::program_options::variables_map vm;
 
 Glib::ustring RDPListener::introspection_xml =
         "<node>"
@@ -73,6 +75,9 @@ void RDPListener::RunServer()
     int status = 0;
     DWORD exitCode = 0;
     rdp_listener_object = this; // store a reference to the object in thread-local storage for the shadow server
+
+    std::string config_path = vm["config-path"].as<std::string>();
+    this->server->ConfigPath = _strdup(config_path.c_str());
 
     // dbus setup
     Glib::RefPtr<Gio::DBus::NodeInfo> introspection_data;
