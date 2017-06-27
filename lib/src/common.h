@@ -59,6 +59,7 @@ typedef struct InputEventCallbacks {
  * @brief The possible types of messages.
  */
 typedef enum message_type {
+    MSGTYPE_INVALID = 0,
     DISPLAY_UPDATE,
     DISPLAY_SWITCH,
     MOUSE,
@@ -235,11 +236,11 @@ struct mux_display {
     /**
      * @brief Current dirty update
      */
-    MuxUpdate *dirty_update;
+    MuxUpdate dirty_update;
     /**
      * @brief Current outgoing update
      */
-    MuxUpdate *out_update;
+    MuxUpdate out_update;
 
     struct {
         zsock_t *socket;
@@ -258,29 +259,14 @@ struct mux_display {
     uint32_t framerate;
 
     /**
-     * @brief Condition variable associated with shared memory region.
+     * @brief Lock guarding access to out_update.
      */
-    pthread_cond_t shm_cond;
-    /**
-     * @brief Lock guarding access to shared memory region.
-     */
-    pthread_mutex_t shm_lock;
+    pthread_mutex_t out_lock;
 
     /**
-     * @brief Condition variable associated with outgoing update.
+     * @brief Boolean representing ready state of out_update.
      */
-    pthread_cond_t update_cond;
-
-    /**
-     * @brief Lock guarding access to the stop variable.
-     */
-    pthread_mutex_t stop_lock;
-    bool stop;
-
-    /**
-     * @brief Outgoing message queue.
-     */
-    MuxMsgQueue outgoing_messages;
+    bool out_ready;
 };
 typedef struct mux_display MuxDisplay;
 

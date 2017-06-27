@@ -7,7 +7,6 @@
 #include "common.h"
 #include "msgpack.h"
 #include "0mq.h"
-#include "queue.h"
 
 InputEventCallbacks callbacks;
 MuxDisplay *display;
@@ -27,6 +26,9 @@ MuxDisplay *display;
  */
 static void mux_expand_rect(MuxUpdate *update, int x, int y, int w, int h)
 {
+    if (update->type != DISPLAY_UPDATE)
+        return;
+
     display_update *u = &update->disp_update;
 
     int new_x1 = x;
@@ -60,33 +62,33 @@ static void mux_expand_rect(MuxUpdate *update, int x, int y, int w, int h)
 static void mux_copy_pixels(unsigned char *dstData, int dstStep, int xDst, int yDst, int width, int height,
                             unsigned char *srcData, int srcStep, int xSrc, int ySrc, int bpp)
 {
-	int lineSize;
-	int pixelSize;
-	unsigned char* pSrc;
-	unsigned char* pDst;
-	unsigned char* pEnd;
+    int lineSize;
+    int pixelSize;
+    unsigned char* pSrc;
+    unsigned char* pDst;
+    unsigned char* pEnd;
 
-	pixelSize = (bpp + 7) / 8;
-	lineSize = width * pixelSize;
+    pixelSize = (bpp + 7) / 8;
+    lineSize = width * pixelSize;
 
-	pSrc = &srcData[(ySrc * srcStep) + (xSrc * pixelSize)];
-	pDst = &dstData[(yDst * dstStep) + (xDst * pixelSize)];
+    pSrc = &srcData[(ySrc * srcStep) + (xSrc * pixelSize)];
+    pDst = &dstData[(yDst * dstStep) + (xDst * pixelSize)];
 
 
     // when the source and destination rectangles are both strips
     // of the framebuffer spanning the full width, it's much cheaper
     // to do one memcpy rather than going line-by-line.
-	if ((srcStep == dstStep) && (lineSize == srcStep)) {
-		memcpy(pDst, pSrc, lineSize * height);
-	} else {
-		pEnd = pSrc + (srcStep * height);
+    if ((srcStep == dstStep) && (lineSize == srcStep)) {
+        memcpy(pDst, pSrc, lineSize * height);
+    } else {
+        pEnd = pSrc + (srcStep * height);
 
-		while (pSrc < pEnd) {
-			memcpy(pDst, pSrc, lineSize);
-			pSrc += srcStep;
-			pDst += dstStep;
-		}
-	}
+        while (pSrc < pEnd) {
+            memcpy(pDst, pSrc, lineSize);
+            pSrc += srcStep;
+            pDst += dstStep;
+        }
+    }
 }
 
 /**
@@ -104,18 +106,15 @@ static void mux_copy_pixels(unsigned char *dstData, int dstStep, int xDst, int y
 __PUBLIC void mux_display_update(int x, int y, int w, int h)
 {
     mux_printf("DCL display update event triggered");
-    MuxUpdate *update;
-    if (!display->dirty_update) {
-        update = g_malloc0(sizeof(MuxUpdate));
+    MuxUpdate *update = &(display->dirty_update);
+    if (update->type == MSGTYPE_INVALID) {
         update->type = DISPLAY_UPDATE;
         update->disp_update.x1 = x;
         update->disp_update.y1 = y;
         update->disp_update.x2 = x+w;
         update->disp_update.y2 = y+h;
-        display->dirty_update = update;
     } else {
         // update dirty bounding box
-        update = display->dirty_update;
         if (update->type != DISPLAY_UPDATE) {
             return;
         }
@@ -123,7 +122,7 @@ __PUBLIC void mux_display_update(int x, int y, int w, int h)
     }
 
     mux_printf("Bounding box updated to [(%d, %d), (%d, %d)]", update->disp_update.x1, update->disp_update.x2,
-           update->disp_update.x2, update->disp_update.y2);
+               update->disp_update.x2, update->disp_update.y2);
 }
 
 /**
@@ -186,29 +185,29 @@ __PUBLIC void mux_display_switch(pixman_image_t *surface)
         display->shm_buffer = shm_buffer;
     }
 
+    memcpy(display->shm_buffer, framebuf_data, width * height * sizeof(uint32_t));
     // create the event update
-    MuxUpdate *update = g_malloc0(sizeof(MuxUpdate));
+
+    MuxUpdate *update = &display->out_update;
+    pthread_mutex_lock(&display->out_lock);
+    //////////////////////////////////////////////////////////////////////
+    /////////////////////////////////////////////////////////////////////
+    //                     CRITICAL SECTION                            //
+    ////////////////////////////////////////////////////////////////////
+    ////////////////////////////////////////////////////////////////////
     update->type = DISPLAY_SWITCH;
     update->disp_switch.shm_fd = display->shmem_fd;
     update->disp_switch.w = width;
     update->disp_switch.h = height;
     update->disp_switch.format = pixman_image_get_format(display->surface);
+    display->out_ready = true;
+    //////////////////////////////////////////////////////////////////////
+    /////////////////////////////////////////////////////////////////////
+    //                 END CRITICAL SECTION                            //
+    ////////////////////////////////////////////////////////////////////
+    ///////////////////////////////////////////////////////////////////
+    pthread_mutex_unlock(&display->out_lock);
 
-    // clear the outgoing queues (all those old messages for the old display
-    // are now totally invalid since we have a new display to work against)
-    mux_queue_clear(&display->outgoing_messages);
-
-    pthread_mutex_lock(&display->shm_lock);
-    memcpy(display->shm_buffer, framebuf_data,
-           width * height * sizeof(uint32_t));
-
-    // signal the shm condition to wake up the processing loop
-    pthread_cond_signal(&display->shm_cond);
-    pthread_mutex_unlock(&display->shm_lock);
-
-
-    // place our display switch update in the outgoing queue
-    mux_queue_enqueue(&display->outgoing_messages, update);
     mux_printf("DISPLAY: DCL display switch callback completed successfully.");
 }
 
@@ -220,82 +219,85 @@ __PUBLIC void mux_display_switch(pixman_image_t *surface)
  */
 __PUBLIC uint32_t mux_display_refresh()
 {
-    if (display->dirty_update) {
-        if (pthread_mutex_trylock(&display->shm_lock) == 0) {
-            int pixelSize;
-            size_t x = 0;
-            size_t y = 0;
-            size_t w = 0;
-            size_t h = 0;
-            display_update* u;
-            size_t surfaceWidth = pixman_image_get_width(display->surface);
-            size_t surfaceHeight = pixman_image_get_height(display->surface);
-            int bpp = PIXMAN_FORMAT_BPP(pixman_image_get_format(display->surface));
-            unsigned char* srcData = (unsigned char*) pixman_image_get_data(display->surface);
-            unsigned char* dstData = (unsigned char*) display->shm_buffer;
+    if (display->dirty_update.type == DISPLAY_UPDATE) {
+        int pixelSize;
+        size_t x = 0;
+        size_t y = 0;
+        size_t w = 0;
+        size_t h = 0;
+        display_update *u = &(display->dirty_update.disp_update);
+        size_t surfaceWidth = pixman_image_get_width(display->surface);
+        size_t surfaceHeight = pixman_image_get_height(display->surface);
+        int bpp = PIXMAN_FORMAT_BPP(pixman_image_get_format(display->surface));
+        unsigned char *srcData = (unsigned char *) pixman_image_get_data(display->surface);
+        unsigned char *dstData = (unsigned char *) display->shm_buffer;
 
-            mux_printf("Now copying framebuffer to shmem region");
+        // align the bounding box to 16 for memory alignment purposes
+        if (u->x1 % 16) {
+            u->x1 -= (u->x1 % 16);
+        }
 
-            u = &display->dirty_update->disp_update;
+        if (u->y1 % 16) {
+            u->y1 -= (u->y1 % 16);
+        }
 
-            // align the bounding box to 16 for memory alignment purposes
-            if (u->x1 % 16) {
-                u->x1 -= (u->x1 % 16);
-            }
+        if (u->x2 % 16) {
+            u->x2 += 16 - (u->x2 % 16);
+        }
 
-            if (u->y1 % 16) {
-                u->y1 -= (u->y1 % 16);
-            }
+        if (u->y2 % 16) {
+            u->y2 += 16 - (u->y2 % 16);
+        }
 
-            if (u->x2 % 16) {
-                u->x2 += 16 - (u->x2 % 16);
-            }
+        if (u->x2 > surfaceWidth) {
+            u->x2 = surfaceWidth;
+        }
 
-            if (u->y2 % 16) {
-                u->y2 += 16 - (u->y2 % 16);
-            }
+        if (u->y2 > surfaceHeight) {
+            u->y2 = surfaceHeight;
+        }
 
-            if (u->x2 > surfaceWidth) {
-                u->x2 = surfaceWidth;
-            }
+        y = u->y1;
+        h = u->y2 - u->y1;
 
-            if (u->y2 > surfaceHeight) {
-                u->y2 = surfaceHeight;
-            }
+        pixelSize = (bpp + 7) / 8;
 
-            y = u->y1;
-            h = u->y2 - u->y1;
+        // aligning the copy offsets does not yield a good performance gain,
+        // but copying contiguous memory blocks makes a huge difference.
+        // by forcing copying of full lines on buffers with the same step,
+        // we can use a single memcpy rather than one memcpy per line.
+        // this may over-copy a bit sometimes, but it's still way cheaper.
+        x = 0;
+        w = surfaceWidth;
 
-            pixelSize = (bpp + 7) / 8;
+        mux_expand_rect(&display->dirty_update, u->x1, u->y1, u->x2 - u->x1, u->y2 - u->y1);
 
-            // aligning the copy offsets does not yield a good performance gain,
-            // but copying contiguous memory blocks makes a huge difference.
-            // by forcing copying of full lines on buffers with the same step,
-            // we can use a single memcpy rather than one memcpy per line.
-            // this may over-copy a bit sometimes, but it's still way cheaper.
-            x = 0;
-            w = surfaceWidth;
-
+        if (pthread_mutex_trylock(&display->out_lock) == 0) {
+            //////////////////////////////////////////////////////////////////////
+            /////////////////////////////////////////////////////////////////////
+            //                     CRITICAL SECTION                            //
+            ////////////////////////////////////////////////////////////////////
+            ////////////////////////////////////////////////////////////////////
             mux_copy_pixels(dstData, w * pixelSize, x, y, w, h, srcData, w * pixelSize, x, y, bpp);
 
-            if (display->out_update == NULL) {
-                mux_printf("Copying dirty update to out update");
-                display->out_update = g_memdup(display->dirty_update, sizeof(MuxUpdate));
-            } else {
-                mux_printf("Calculating new out update bounds");
-                mux_expand_rect(display->out_update, u->x1, u->y1, u->x2 - u->x1, u->y2 - u->y1);
+            if (display->out_ready == false &&
+                display->out_update.type == MSGTYPE_INVALID) { // we don't have another event queued
+                display->out_update = display->dirty_update;
+                display->out_ready = true;
+                display->dirty_update.type = MSGTYPE_INVALID;
             }
-
-            g_free(display->dirty_update);
-            display->dirty_update = NULL;
-
-            pthread_cond_signal(&display->update_cond);
-            pthread_mutex_unlock(&display->shm_lock);
+            //////////////////////////////////////////////////////////////////////
+            /////////////////////////////////////////////////////////////////////
+            //                 END CRITICAL SECTION                            //
+            ////////////////////////////////////////////////////////////////////
+            ///////////////////////////////////////////////////////////////////
+            pthread_mutex_unlock(&display->out_lock);
         }
     } else {
-//        mux_printf("Refresh deferred");
+        mux_printf("Refresh deferred");
     }
-    return (uint32_t) (1000 / display->framerate);
+
+    return (uint32_t) 30;
 }
 
 /*
@@ -303,61 +305,11 @@ __PUBLIC uint32_t mux_display_refresh()
  */
 
 /**
- * @func Outgoing message loop. It is designed to be run as a thread runloop, and should be dispatched as a runnable
- * inside a separate thread during library initialization. Its function prototype matches what pthreads et al. expect.
- *
- * This function queues outgoing messages, and blocks waiting for the server to copy data out of the shared memory
- * region and return an ack message to the library. This ensures that the library and server are not accessing the shared
- * memory concurrently.
+ * @func Unused, stubbed out until formal removal.
  */
-__PUBLIC void mux_out_loop()
+__PUBLIC void *mux_out_loop()
 {
-    while(true) {
-
-        // check if exiting
-        pthread_mutex_lock(&display->stop_lock);
-        if (display->stop) break;
-        pthread_mutex_unlock(&display->stop_lock);
-
-        pthread_mutex_lock(&display->shm_lock);
-        while (display->out_update == NULL) {
-
-            // check if exiting
-            pthread_mutex_lock(&display->stop_lock);
-            if (display->stop) {
-                goto cleanup;
-            }
-            pthread_mutex_unlock(&display->stop_lock);
-
-            pthread_cond_wait(&display->update_cond, &display->shm_lock);
-        }
-
-        // check if exiting
-        pthread_mutex_lock(&display->stop_lock);
-        if (display->stop) break;
-        pthread_mutex_unlock(&display->stop_lock);
-
-        // place the update on the outgoing queue
-        mux_queue_enqueue(&display->outgoing_messages, display->out_update);
-        display->out_update = NULL;
-        mux_printf("out_update qeueued and reset!");
-
-        // block on the signal.
-        mux_printf("Now waiting on ack from other process");
-        pthread_cond_wait(&display->shm_cond, &display->shm_lock);
-
-        // check if exiting
-        pthread_mutex_lock(&display->stop_lock);
-        if (display->stop) break;
-        pthread_mutex_unlock(&display->stop_lock);
-
-        mux_printf("Ack received! Unlocking shm region and continuing\n----------");
-        pthread_mutex_unlock(&display->shm_lock);
-    }
-cleanup:
-    pthread_mutex_unlock(&display->shm_lock);
-    mux_printf("Now exiting out loop!");
-    return;
+    return NULL;
 }
 
 /**
@@ -404,16 +356,38 @@ __PUBLIC void *mux_mainloop(void *arg)
         nnStr msg;
         msg.buf = NULL;
         buf = NULL;
+        MuxUpdate out;
+        bool ready = false;
 
-        while(!mux_queue_check_is_empty(&display->outgoing_messages)) {
-            MuxUpdate *update = (MuxUpdate *) mux_queue_dequeue(&display->outgoing_messages); // blocks until something in queue
-            len = mux_write_outgoing_msg(update, &msg); // serialize update to buf
-            while (mux_0mq_send_msg(msg.buf, len) < 0) {
-                mux_printf_error("Failed to send message");
+        pthread_mutex_lock(&display->out_lock);
+        //////////////////////////////////////////////////////////////////////
+        /////////////////////////////////////////////////////////////////////
+        //                     CRITICAL SECTION                            //
+        ////////////////////////////////////////////////////////////////////
+        ////////////////////////////////////////////////////////////////////
+        ready = display->out_ready;
+        if (ready) {
+            mux_printf("Out update is ready, typed %d!", display->out_update.type);
+            out = display->out_update;
+            display->out_update.type = MSGTYPE_INVALID;
+            display->out_ready = false;
+        }
+        //////////////////////////////////////////////////////////////////////
+        /////////////////////////////////////////////////////////////////////
+        //                 END CRITICAL SECTION                            //
+        ////////////////////////////////////////////////////////////////////
+        ///////////////////////////////////////////////////////////////////
+        pthread_mutex_unlock(&display->out_lock);
+
+        if (ready) {
+            if (out.type != MSGTYPE_INVALID) {
+                len = mux_write_outgoing_msg(&out, &msg);
+                while (mux_0mq_send_msg(msg.buf, len) < 0)
+                    mux_printf_error("Failed to send message");
+
+                g_free(msg.buf);
+                memset(&out, 0, sizeof(MuxUpdate));
             }
-            g_free(update); // update is no longer needed, free it
-            g_free(msg.buf); // free buf, no longer needed.
-            msg.buf = NULL;
         }
 
         // block on receiving messages
@@ -421,47 +395,26 @@ __PUBLIC void *mux_mainloop(void *arg)
         if (which != display->zmq.socket)  {
             if (zpoller_terminated(poller)) {
                 mux_printf_error("Zpoller terminated!");
-
-                // send shutdown msg
-                mux_send_shutdown_msg();
-
-                mux_printf("sent shutdown message");
-
                 stopping = true;
             }
         } else {
             nbytes = mux_0mq_recv_msg(&buf);
             if (nbytes > 0) {
                 // successful recv is successful
-                mux_printf("We have received a message of size %d bytes!", nbytes);
                 mux_process_incoming_msg(buf, nbytes);
             }
         }
-
-        pthread_mutex_lock(&display->stop_lock);
-        if (display->stop) {
-            stopping = true;
-        }
-        pthread_mutex_unlock(&display->stop_lock);
     }
 
     // cleanup
     mux_printf("Cleaning up!");
-    pthread_mutex_unlock(&display->stop_lock);
 
-    // clean up queues
-    mux_queue_clear(&display->outgoing_messages);
+    zpoller_destroy(&display->zmq.poller);
+    mux_send_shutdown_msg();
 
-    // clean up socket
-    if (!zpoller_terminated(display->zmq.poller)) {
-        zpoller_destroy(&display->zmq.poller);
-    }
-//    zsock_set_linger(display->zmq.socket, 1);
-    zsock_disconnect(display->zmq.socket, "%s", display->zmq.path);
     zsock_destroy(&display->zmq.socket);
-    // signal to wake up other thread
-    pthread_cond_signal(&display->update_cond);
-    pthread_cond_signal(&display->shm_cond);
+    mux_printf("zsock_destroy has been called!");
+
     return NULL;
 }
 
@@ -490,11 +443,9 @@ __PUBLIC MuxDisplay *mux_init_display_struct(const char *uuid)
 {
     display = g_malloc0(sizeof(MuxDisplay));
     display->shmem_fd = -1;
-    display->dirty_update = NULL;
-    display->out_update = NULL;
     display->uuid = NULL;
     display->zmq.socket = NULL;
-    display->framerate = 20;
+    display->framerate = 30;
 
     if (uuid != NULL) {
         if (strlen(uuid) != 36) {
@@ -511,11 +462,7 @@ __PUBLIC MuxDisplay *mux_init_display_struct(const char *uuid)
         display->uuid = NULL;
     }
 
-    pthread_cond_init(&display->shm_cond, NULL);
-    pthread_mutex_init(&display->shm_lock, NULL);
-    pthread_cond_init(&display->update_cond, NULL);
-
-    mux_init_queue(&display->outgoing_messages);
+    pthread_mutex_init(&display->out_lock, NULL);
 
     return display;
 }
@@ -530,21 +477,9 @@ __PUBLIC void mux_register_event_callbacks(InputEventCallbacks cb)
 }
 
 /**
- * @func Should be called to safely cleanup library state. Note that ZeroMQ threads may (will) hang around for a long
- * time unless they're cleaned up by this method.
+ * @func Should be called to safely cleanup library state. Note that ZeroMQ threads may (will) hang around forever
+ * unless they're cleaned up by this method.
  */
 __PUBLIC void mux_cleanup(MuxDisplay *d)
 {
-    mux_printf("Now cleaning up librdpmux struct");
-    if (d == NULL) {
-        mux_printf_error("Invalid MuxDisplay pointer");
-        return;
-    }
-
-    pthread_mutex_lock(&display->stop_lock);
-    display->stop = true;
-    pthread_mutex_unlock(&display->stop_lock);
-
-    // clean up uuid
-    g_free(&display->uuid);
 }
