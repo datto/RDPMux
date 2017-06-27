@@ -76,17 +76,10 @@ install -pm 0644 dist/org.RDPMux.RDPMux.conf %{buildroot}%{_dbus_conf_dir}
 
 # Setting up files for ghost file list directive
 # See: http://www.rpm.org/max-rpm-snapshot/s1-rpm-inside-files-list-directives.html
-mkdir -p %{buildroot}%{_sharedstatedir}/rdpmux
-touch %{buildroot}%{_sharedstatedir}/rdpmux/server.key
-touch %{buildroot}%{_sharedstatedir}/rdpmux/server.crt
+mkdir -p %{buildroot}%{_sysconfdir}/rdpmux/shadow
+touch %{buildroot}%{_sharedstatedir}/rdpmux/shadow/server.key
+touch %{buildroot}%{_sharedstatedir}/rdpmux/shadow/server.crt
 
-%post
-if [ "$1" = "1" ]; then
-    if [ ! -e "/var/lib/rdpmux/server.key" ]; then
-        mkdir -p %{_sharedstatedir}/rdpmux
-        openssl req -x509 -newkey rsa:2048 -keyout %{_sharedstatedir}/rdpmux/server.key -out %{_sharedstatedir}/rdpmux/server.crt -nodes -subj "/C=US"
-    fi
-fi
 %systemd_post rdpmux.service
 
 %preun
@@ -103,9 +96,10 @@ fi
 %{_unitdir}/rdpmux.service
 %{_dbus_conf_dir}/org.RDPMux.RDPMux.conf
 %license LICENSE
-%ghost %{_sharedstatedir}/rdpmux
-%ghost %{_sharedstatedir}/rdpmux/server.key
-%ghost %{_sharedstatedir}/rdpmux/server.crt
+%ghost %{_sysconfdir}/rdpmux
+%ghost %{_sysconfdir}/rdpmux/shadow
+%ghost %{_sysconfdir}/rdpmux/shadow/server.key
+%ghost %{_sysconfdir}/rdpmux/shadow/server.crt
 
 %files -n lib%{name}
 %license LICENSE.LIB
