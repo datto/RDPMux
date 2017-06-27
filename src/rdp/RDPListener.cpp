@@ -152,11 +152,9 @@ std::tuple<uint32_t, uint32_t, uint32_t, uint32_t> RDPListener::GetDirtyRegion()
 
 void RDPListener::processDisplayUpdate(std::vector<uint32_t> msg)
 {
-    // note that under current calling conditions, this will run in the mainloop of the RDPServerWorker. This is what
-    // allows us to call RDPServerWorker::SendMessage without worrying about thread-safety. IF YOU EVER MOVE THINGS
-    // AROUND SUCH THAT THIS FUNCTION IS RUN IN A SEPARATE THREAD, YOU'LL NEED TO FIGURE OUT A BETTER WAY TO SEND
-    // MESSAGES! I recommend a queue, they're super swell.
+    // note that under current calling conditions, this will run in the mainloop of the RDPServerWorker.
 
+    VLOG(3) << "LISTENER " << this << ": Now processing display update message";
     {
         std::lock_guard<std::mutex> lock(dimMutex);
         x = msg.at(1);
@@ -164,17 +162,6 @@ void RDPListener::processDisplayUpdate(std::vector<uint32_t> msg)
         w = msg.at(3);
         h = msg.at(4);
     }
-
-    VLOG(3) << "LISTENER " << this << ": Now processing display update message";
-
-    // send back display update complete message
-    std::vector<uint16_t> vec;
-    vec.push_back(DISPLAY_UPDATE_COMPLETE);
-    vec.push_back(1);
-    vec.push_back(targetFPS);
-
-    parent->sendMessage(vec, uuid);
-//    LOG(INFO) << "LISTENER " << this << ": Sent ack to QEMU process: new target framerate " << targetFPS;
 }
 
 std::tuple<int, int, int> RDPListener::GetRDPFormat()

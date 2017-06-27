@@ -227,9 +227,6 @@ void mux_process_incoming_msg(void *buf, int nbytes)
             mux_process_incoming_kb_msg(&cmp, &msg);
             break;
         case DISPLAY_UPDATE_COMPLETE:
-            mux_printf("Signaling shm_cond for DISPLAY_UPDATE_COMPLETE wakeup");
-            mux_process_incoming_complete_msg(&cmp, &msg);
-            pthread_cond_signal(&display->shm_cond);
             break;
         default:
             mux_printf_error("Invalid message type");
