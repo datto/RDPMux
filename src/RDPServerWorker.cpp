@@ -53,48 +53,52 @@ bool RDPServerWorker::Initialize()
     return initialized;
 }
 
-bool RDPServerWorker::RegisterNewVM(std::string uuid, int id)
+bool RDPServerWorker::RegisterNewVM(std::string uuid, int id, uint16_t port = 0)
 {
     std::lock_guard<std::mutex> lock(container_lock); // take lock on both ports and listener_map
-    uint16_t port = 0;
+    uint16_t used_port = port;
     std::shared_ptr<RDPListener> l;
 
-    // find the next available port from the list
-    // if this gets slow for you, consider not running as many VMs on the same computer
-    for (uint16_t i = starting_port; i < 65535; i++) {
-        if (ports.count(i) == 0) {
-            // check if port is available to be bound
-            struct addrinfo hints, *res;
-            int sockfd;
+    if (used_port == 0) {
+        // find the next available port
+        // if this gets slow for you, consider not running as many VMs on the same computer
+        for (uint16_t i = starting_port; i < 65535; i++) {
+            if (ports.count(i) == 0) {
+                // check if port is available to be bound
+                struct addrinfo hints, *res;
+                int sockfd;
 
-            memset(&hints, 0, sizeof(hints));
-            hints.ai_family = AF_INET; // IPv4
-            hints.ai_socktype = SOCK_STREAM; // TCP stream socket
-            getaddrinfo("0.0.0.0", std::to_string(i).c_str(), &hints, &res); // check for usage across all interfaces
+                memset(&hints, 0, sizeof(hints));
+                hints.ai_family = AF_INET; // IPv4
+                hints.ai_socktype = SOCK_STREAM; // TCP stream socket
+                getaddrinfo("0.0.0.0", std::to_string(i).c_str(), &hints,
+                            &res); // check for usage across all interfaces
 
-            sockfd = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
+                sockfd = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
 
-            // try binding
-            int ret = bind(sockfd, res->ai_addr, res->ai_addrlen);
-            free(res); // free the linked list of results no matter what
-            if (ret < 0) { // failed, continue the loop
-                continue;
+                // try binding
+                int ret = bind(sockfd, res->ai_addr, res->ai_addrlen);
+                free(res); // free the linked list of results no matter what
+                if (ret < 0) { // failed, continue the loop
+                    continue;
+                }
+                // cleanup and setting the port if we suceeded
+                close(sockfd);
+                used_port = i;
+                break;
             }
-            // cleanup and setting the port if we suceeded
-            close(sockfd);
-            port = i;
-            ports.insert(i);
-            break;
         }
     }
 
-    if (port == 0 || port > 65535) {
-        LOG(WARNING) << "Invalid server port number: " << port;
+    if (used_port == 0 || used_port > 65535) {
+        LOG(WARNING) << "Invalid server port number: " << used_port;
         return false;
     }
 
+    ports.insert(used_port);
+
     try {
-        l = std::make_shared<RDPListener>(uuid, id, port, this, this->authenticating, dbus_conn); // RDPListener args
+        l = std::make_shared<RDPListener>(uuid, id, used_port, this, this->authenticating, dbus_conn);
     } catch (std::exception &e) {
         return false;
     }

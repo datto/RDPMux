@@ -22,6 +22,8 @@
 #include "util/logging.h"
 #include <giomm-2.4/giomm.h>
 
+#define RDPMUX_PROTOCOL_VERSION 4
+
 /**
  * @brief enum of message types.
  */
