@@ -3,7 +3,7 @@
 %global _dbus_conf_dir %{_sysconfdir}/dbus-1/system.d
 
 Name:           rdpmux
-Version:        0.4.0
+Version:        0.5.0
 Release:        1%{?dist}
 Summary:        RDP server multiplexer designed to work with virtual machines
 License:        ASL 2.0
@@ -109,6 +109,10 @@ touch %{buildroot}%{_sharedstatedir}/rdpmux/shadow/server.crt
 %{_includedir}/*.h
 %{_libdir}/*.so
 %{_libdir}/pkgconfig/*.pc
+
+%changelog
+* Tue Jun 27 2017 Sri Ramanujam <sramanujam@datto.com> - 0.5.0-1
+- Bump to 0.5.0
 
 * Tue Jul 12 2016 Neal Gompa <ngompa@datto.com> - 0.4.0-1
 - Bump to 0.4.0
