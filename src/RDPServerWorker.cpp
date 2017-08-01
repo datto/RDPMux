@@ -19,7 +19,7 @@
 #include "RDPServerWorker.h"
 
 RDPServerWorker::RDPServerWorker(uint16_t port, bool auth)
-        : starting_port(port),
+        : starting_port(3901),
           initialized(false),
           context(1), // todo: explore the possibility of needing more than one thread
           zsocket(context, ZMQ_ROUTER),
@@ -53,13 +53,13 @@ bool RDPServerWorker::Initialize()
     return initialized;
 }
 
-bool RDPServerWorker::RegisterNewVM(std::string uuid, int id, uint16_t port = 0)
+bool RDPServerWorker::RegisterNewVM(std::string uuid, int id, std::string password, uint16_t port = 0)
 {
     std::lock_guard<std::mutex> lock(container_lock); // take lock on both ports and listener_map
-    uint16_t used_port = port;
+    uint16_t used_port = 0;
     std::shared_ptr<RDPListener> l;
 
-    if (used_port == 0) {
+    if (port == 0) {
         // find the next available port
         // if this gets slow for you, consider not running as many VMs on the same computer
         for (uint16_t i = starting_port; i < 65535; i++) {
@@ -98,7 +98,7 @@ bool RDPServerWorker::RegisterNewVM(std::string uuid, int id, uint16_t port = 0)
     ports.insert(used_port);
 
     try {
-        l = std::make_shared<RDPListener>(uuid, id, used_port, this, this->authenticating, dbus_conn);
+        l = std::make_shared<RDPListener>(uuid, id, used_port, this, false, dbus_conn, password.empty() ? "" : password);
     } catch (std::exception &e) {
         return false;
     }

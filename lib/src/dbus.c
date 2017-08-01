@@ -20,9 +20,10 @@
  * @param obj The object path of the DBus service
  * @param out_path The path to the VM's private communication socket returned by the DBus service.
  * @param id The ID of the VM.
- * @param port The port the server should listen on. Set to 0 for auto port selection.
+ * @param port The port the server should listen on. Set this to 0 for auto port selection.
+ * @param password The password for the server to use. Set this to NULL if not needed.
  */
-__PUBLIC bool mux_get_socket_path(const char *name, const char *obj, char **out_path, int id, uint16_t port)
+__PUBLIC bool mux_get_socket_path(const char *name, const char *obj, char **out_path, int id, uint16_t port, const char *password)
 {
     if (!obj)
         return false;
@@ -48,6 +49,10 @@ __PUBLIC bool mux_get_socket_path(const char *name, const char *obj, char **out_
         return false;
     }
     assert(proxy != NULL);
+
+    if (password == NULL) {
+        password = "";
+    }
 
     // get the list of supported protocol versions, and check if our version is in there
     protocol_versions = mux_org_rdpmux_rdpmux_get_supported_protocol_versions(proxy);
@@ -105,7 +110,7 @@ proto_found:
     }
 
     if (!mux_org_rdpmux_rdpmux_call_register_sync(proxy, id, RDPMUX_PROTOCOL_VERSION, display->uuid,
-                                                  port, out_path, NULL, &error)) {
+                                                  port, password, out_path, NULL, &error)) {
         mux_printf_error("could not retrieve socket path: %s", error->message);
         g_error_free(error);
         return false;

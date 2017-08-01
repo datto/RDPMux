@@ -50,7 +50,7 @@ public:
      * @param conn Reference to the process's DBus connection for exposing the Listener object
      */
     RDPListener(std::string uuid, int vm_id, uint16_t port, RDPServerWorker *parent, bool auth,
-                Glib::RefPtr<Gio::DBus::Connection> conn);
+                Glib::RefPtr<Gio::DBus::Connection> conn, std::string password);
     /**
      * @brief Safely cleans up the freerdp_listener struct and frees all WinPR objects.
      */
@@ -186,6 +186,11 @@ private:
      * @brief UUID of the VM associated with the listener.
      */
     std::string uuid;
+
+    /**
+     * @brief Password of the RDP session.
+     */
+    std::string password;
 
     /**
      * @brief Unique ID of VM framebuffer.
