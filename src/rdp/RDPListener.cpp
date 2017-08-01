@@ -41,15 +41,16 @@ Glib::ustring RDPListener::introspection_xml =
         "</node>";
 
 RDPListener::RDPListener(std::string uuid, int vm_id, uint16_t port, RDPServerWorker *parent, bool auth,
-                         Glib::RefPtr<Gio::DBus::Connection> conn) : shm_buffer(nullptr),
-                                                                     dbus_conn(conn),
-                                                                     parent(parent),
-                                                                     port(port),
-                                                                     uuid(uuid),
-                                                                     vm_id(vm_id),
-                                                                     authenticating(auth),
-                                                                     targetFPS(30),
-                                                                     credential_path()
+                         Glib::RefPtr<Gio::DBus::Connection> conn, std::string password) : shm_buffer(nullptr),
+                                                                                           dbus_conn(conn),
+                                                                                           parent(parent),
+                                                                                           port(port),
+                                                                                           uuid(uuid),
+                                                                                           password(password),
+                                                                                           vm_id(vm_id),
+                                                                                           authenticating(auth),
+                                                                                           targetFPS(30),
+                                                                                           credential_path()
 {
     WTSRegisterWtsApiFunctionTable(FreeRDP_InitWtsApi());
     stop = false;
@@ -103,8 +104,16 @@ void RDPListener::RunServer()
     }
     registered_id = dbus_conn->register_object(dbus_name, introspection_data->lookup_interface(), vtable);
 
-    this->server->settings->NlaSecurity = FALSE;
     this->server->port = this->port;
+
+    if (this->Authenticating()) {
+        this->server->settings->NlaSecurity = TRUE;
+        this->server->settings->TlsSecurity = FALSE;
+        this->server->settings->Password = (char *) password.c_str();
+        this->server->settings->Username = (char *) std::string("datto").c_str();
+    } else {
+        this->server->settings->NlaSecurity = FALSE;
+    }
 
     // Shadow server run loop
     if (shadow_server_start(this->server) < 0) {

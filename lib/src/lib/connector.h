@@ -625,7 +625,8 @@ struct _MuxOrgRDPMuxRDPMuxIface
             gint arg_id,
             gint arg_version,
             const gchar *arg_uuid,
-            guint16 arg_port);
+            guint16 arg_port,
+            const gchar *arg_password);
 
     GVariant * (*get_supported_protocol_versions) (MuxOrgRDPMuxRDPMux *object);
 
@@ -652,6 +653,7 @@ void mux_org_rdpmux_rdpmux_call_register (
         gint arg_version,
         const gchar *arg_uuid,
         guint16 arg_port,
+        const gchar *arg_password,
         GCancellable *cancellable,
         GAsyncReadyCallback callback,
         gpointer user_data);
@@ -668,6 +670,7 @@ gboolean mux_org_rdpmux_rdpmux_call_register_sync (
         gint arg_version,
         const gchar *arg_uuid,
         guint16 arg_port,
+        const gchar *arg_password,
         gchar **out_socket_path,
         GCancellable *cancellable,
         GError **error);
