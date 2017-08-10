@@ -46,11 +46,11 @@ public:
      * @param vm_id The unique ID of the VM's framebuffer.
      * @param port The port the listener should bind to.
      * @param parent A pointer to the RDPServerWorker for (LIMITED) use // todo: not so limited
-     * @param auth Whether the listener should authenticate peer connections
+     * @param auth Path to auth file. Empty if no auth.
      * @param conn Reference to the process's DBus connection for exposing the Listener object
      */
-    RDPListener(std::string uuid, int vm_id, uint16_t port, RDPServerWorker *parent, bool auth,
-                Glib::RefPtr<Gio::DBus::Connection> conn, std::string password);
+    RDPListener(std::string uuid, int vm_id, uint16_t port, RDPServerWorker *parent, std::string auth,
+                Glib::RefPtr<Gio::DBus::Connection> conn);
     /**
      * @brief Safely cleans up the freerdp_listener struct and frees all WinPR objects.
      */
@@ -139,6 +139,13 @@ public:
     bool Authenticating();
 
     /**
+     * @brief Set authentication on or off for this listener.
+     *
+     * @param auth True or false.
+     */
+    void Authenticating(bool auth);
+
+    /**
      * @brief Retrieve the currently set credential path.
      *
      * Will be an empty string if no path is set.
@@ -188,9 +195,9 @@ private:
     std::string uuid;
 
     /**
-     * @brief Password of the RDP session.
+     * @brief Absolute path to WinPR SAM file containing auth hashes for this listener.
      */
-    std::string password;
+    std::string samfile;
 
     /**
      * @brief Unique ID of VM framebuffer.

@@ -36,7 +36,7 @@ namespace {
             "      <arg type='i' name='version' direction='in' />"
             "      <arg type='s' name='uuid' direction='in' />"
             "      <arg type='q' name='port' direction='in' />"
-            "      <arg type='s' name='password' direction='in' />"
+            "      <arg type='s' name='authFile' direction='in' />"
             "      <arg type='s' name='socket_path' direction='out'/>"
             "    </method>"
             "    <property type='ai' name='SupportedProtocolVersions' access='read' />"
@@ -72,19 +72,20 @@ static void on_method_call(const Glib::RefPtr<Gio::DBus::Connection>& conn,
     if (method_name == "Register") {
         Glib::Variant<int> id_variant;
         Glib::Variant<int> ver_variant;
-        Glib::Variant<std::string> uuid_variant, password_variant;
+        Glib::Variant<std::string> uuid_variant;
         Glib::Variant<uint16_t> port_variant;
+        Glib::Variant<std::string> auth_variant;
 
         parameters.get_child(id_variant, 0);
         parameters.get_child(ver_variant, 1);
         parameters.get_child(uuid_variant, 2);
         parameters.get_child(port_variant, 3);
-        parameters.get_child(password_variant, 4);
+        parameters.get_child(auth_variant, 4);
         int vm_id = id_variant.get();
         int ver = ver_variant.get();
         std::string uuid = uuid_variant.get();
         uint16_t port = port_variant.get();
-        std::string password = password_variant.get();
+        std::string auth = auth_variant.get();
 
         if (ver != RDPMUX_PROTOCOL_VERSION) {
             invocation->return_value(
@@ -96,7 +97,7 @@ static void on_method_call(const Glib::RefPtr<Gio::DBus::Connection>& conn,
             return;
         }
 
-        if (!broker->RegisterNewVM(uuid, vm_id, password, port)) {
+        if (!broker->RegisterNewVM(uuid, vm_id, auth, port)) {
             LOG(WARNING) << "VM Registration failed!";
             invocation->return_value(
                     Glib::VariantContainerBase::create_tuple(
