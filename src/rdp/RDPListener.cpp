@@ -40,23 +40,26 @@ Glib::ustring RDPListener::introspection_xml =
         "  </interface>"
         "</node>";
 
-RDPListener::RDPListener(std::string uuid, int vm_id, uint16_t port, RDPServerWorker *parent, bool auth,
-                         Glib::RefPtr<Gio::DBus::Connection> conn, std::string password) : shm_buffer(nullptr),
-                                                                                           dbus_conn(conn),
-                                                                                           parent(parent),
-                                                                                           port(port),
-                                                                                           uuid(uuid),
-                                                                                           password(password),
-                                                                                           vm_id(vm_id),
-                                                                                           authenticating(auth),
-                                                                                           targetFPS(30),
-                                                                                           credential_path()
+RDPListener::RDPListener(std::string uuid, int vm_id, uint16_t port, RDPServerWorker *parent, std::string auth,
+                         Glib::RefPtr<Gio::DBus::Connection> conn) : shm_buffer(nullptr),
+                                                                     dbus_conn(conn),
+                                                                     parent(parent),
+                                                                     port(port),
+                                                                     uuid(uuid),
+                                                                     samfile(),
+                                                                     vm_id(vm_id),
+                                                                     targetFPS(30),
+                                                                     credential_path()
 {
     WTSRegisterWtsApiFunctionTable(FreeRDP_InitWtsApi());
     stop = false;
 
     shadow_subsystem_set_entry(RDPMux_ShadowSubsystemEntry);
     server = shadow_server_new();
+
+    if (!auth.empty())
+        samfile = auth;
+    this->Authenticating(!auth.empty());
 
     if (!server) {
         LOG(FATAL) << "LISTENER " << this << ": Shadow server didn't alloc properly, exiting.";
@@ -105,15 +108,6 @@ void RDPListener::RunServer()
     registered_id = dbus_conn->register_object(dbus_name, introspection_data->lookup_interface(), vtable);
 
     this->server->port = this->port;
-
-    if (this->Authenticating()) {
-        this->server->settings->NlaSecurity = TRUE;
-        this->server->settings->TlsSecurity = FALSE;
-        this->server->settings->Password = (char *) password.c_str();
-        this->server->settings->Username = (char *) std::string("datto").c_str();
-    } else {
-        this->server->settings->NlaSecurity = FALSE;
-    }
 
     // Shadow server run loop
     if (shadow_server_start(this->server) < 0) {
@@ -260,6 +254,19 @@ bool RDPListener::Authenticating()
     return authenticating;
 }
 
+void RDPListener::Authenticating(bool auth)
+{
+    this->authenticating = auth;
+    if (auth) {
+        this->server->settings->NlaSecurity = TRUE;
+        this->server->settings->TlsSecurity = FALSE;
+        if (!this->server->settings->NtlmSamFile)
+            this->server->settings->NtlmSamFile = _strdup(this->samfile.c_str());
+    } else {
+        this->server->settings->NlaSecurity = FALSE;
+    }
+}
+
 void RDPListener::on_method_call(const Glib::RefPtr<Gio::DBus::Connection> &, /* connection */
                                  const Glib::ustring &, /* sender */
                                  const Glib::ustring &, /* object path */
@@ -278,8 +285,7 @@ void RDPListener::on_method_call(const Glib::RefPtr<Gio::DBus::Connection> &, /*
     } else if (method_name == "SetAuthentication") {
         Glib::Variant<bool> auth_variant;
         parameters.get_child(auth_variant, 0);
-
-        this->authenticating = auth_variant.get();
+        this->Authenticating(auth_variant.get());
         invocation->return_value(Glib::VariantContainerBase());
     } else {
         Gio::DBus::Error error(Gio::DBus::Error::UNKNOWN_METHOD,

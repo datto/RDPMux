@@ -66,12 +66,12 @@ public:
      *
      * @param uuid UUID of incoming VM connection.
      * @param vm_id Unique ID of VM fb.
-     * @param password Password for RDP session. Empty if no password.
+     * @param auth Path to auth file for RDP session. Empty if no file.
      * @param port Preferred port for RDP server to be listening on.
      *
      * @returns bool Success
      */
-    bool RegisterNewVM(std::string uuid, int vm_id, std::string password, uint16_t port);
+    bool RegisterNewVM(std::string uuid, int vm_id, std::string auth, uint16_t port);
 
     /**
      * @brief Unregisters VM.

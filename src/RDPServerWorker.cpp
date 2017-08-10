@@ -53,7 +53,7 @@ bool RDPServerWorker::Initialize()
     return initialized;
 }
 
-bool RDPServerWorker::RegisterNewVM(std::string uuid, int id, std::string password, uint16_t port = 0)
+bool RDPServerWorker::RegisterNewVM(std::string uuid, int id, std::string auth, uint16_t port = 0)
 {
     std::lock_guard<std::mutex> lock(container_lock); // take lock on both ports and listener_map
     uint16_t used_port = 0;
@@ -98,7 +98,7 @@ bool RDPServerWorker::RegisterNewVM(std::string uuid, int id, std::string passwo
     ports.insert(used_port);
 
     try {
-        l = std::make_shared<RDPListener>(uuid, id, used_port, this, false, dbus_conn, password.empty() ? "" : password);
+        l = std::make_shared<RDPListener>(uuid, id, used_port, this, auth, dbus_conn);
     } catch (std::exception &e) {
         return false;
     }
