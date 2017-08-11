@@ -88,6 +88,8 @@ bool RDPServerWorker::RegisterNewVM(std::string uuid, int id, std::string auth, 
                 break;
             }
         }
+    } else {
+        used_port = port;
     }
 
     if (used_port == 0 || used_port > 65535) {
