@@ -22,7 +22,7 @@
 #include "util/logging.h"
 #include <giomm-2.4/giomm.h>
 
-#define RDPMUX_PROTOCOL_VERSION 4
+#define RDPMUX_PROTOCOL_VERSION 5
 
 /**
  * @brief enum of message types.

@@ -26,7 +26,7 @@
 /**
  * @brief Protocol version.
  */
-#define RDPMUX_PROTOCOL_VERSION 4
+#define RDPMUX_PROTOCOL_VERSION 5
 
 /**
  * @brief debug output macro

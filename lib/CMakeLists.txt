@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.2)
 project(librdpmux C)
 
 set(MAJOR_VERSION 0)
-set(MINOR_VERSION 5)
+set(MINOR_VERSION 6)
 set(PATCH_VERSION 0)
 set(MUX_VERSION "${MAJOR_VERSION}.${MINOR_VERSION}.${PATCH_VERSION}")
 
@@ -21,9 +21,6 @@ set(CMAKE_C_FLAGS_RELEASE "${GENERAL_RELEASE_FLAGS}")
 if(CMAKE_BUILD_TYPE MATCHES Debug)
          add_definitions(-DUSE_DEBUG_OUTPUT)
 endif(CMAKE_BUILD_TYPE MATCHES Debug)
-if(CMAKE_BUILD_TYPE MATCHES RelWithDebInfo)
-    add_definitions(-DUSE_DEBUG_OUTPUT)
-endif(CMAKE_BUILD_TYPE MATCHES RelWithDebInfo)
 
 include(GNUInstallDirs)
 file(GLOB_RECURSE SHIM_SOURCE_FILES "${CMAKE_CURRENT_SOURCE_DIR}/src/*.c" "${CMAKE_CURRENT_SOURCE_DIR}/src/*.h")
