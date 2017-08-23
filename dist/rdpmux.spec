@@ -3,7 +3,7 @@
 %global _dbus_conf_dir %{_sysconfdir}/dbus-1/system.d
 
 Name:           rdpmux
-Version:        0.5.0
+Version:        0.6.0
 Release:        1%{?dist}
 Summary:        RDP server multiplexer designed to work with virtual machines
 License:        ASL 2.0
@@ -26,7 +26,6 @@ BuildRequires:  libsigc++20-devel
 BuildRequires:  zeromq-devel >= 4.1.0
 BuildRequires:  czmq-devel >= 3.0.0
 
-Requires(post):   openssl
 Requires(post):   systemd
 Requires(preun):  systemd
 Requires(postun): systemd
@@ -38,6 +37,7 @@ It communicates with VMs via lib%{name}, which implements the
 communication protocol and exposes an API for hypervisors to hook into.
 
 %package -n        lib%{name}
+License:           MIT
 Summary:           Library for implementing hypervisor-side functionality
 
 %description -n    lib%{name}
@@ -47,6 +47,7 @@ to the current framebuffer of the VM, and to programmatically
 send and receive keyboard and mouse events.
 
 %package -n        lib%{name}-devel
+License:           MIT
 Summary:           Development files for lib%{name}-devel
 Requires:          lib%{name}%{?_isa} = %{version}-%{release}
 
@@ -60,9 +61,9 @@ files for developing applications that use lib%{name}.
 
 %build
 %if 0%{?rhel} == 7
-%cmake3 .
+%cmake3 -DCMAKE_BUILD_TYPE=RelWithDebInfo .
 %else
-%cmake .
+%cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo .
 %endif
 
 %make_build V=1
@@ -77,9 +78,10 @@ install -pm 0644 dist/org.RDPMux.RDPMux.conf %{buildroot}%{_dbus_conf_dir}
 # Setting up files for ghost file list directive
 # See: http://www.rpm.org/max-rpm-snapshot/s1-rpm-inside-files-list-directives.html
 mkdir -p %{buildroot}%{_sysconfdir}/rdpmux/shadow
-touch %{buildroot}%{_sharedstatedir}/rdpmux/shadow/server.key
-touch %{buildroot}%{_sharedstatedir}/rdpmux/shadow/server.crt
+touch %{buildroot}%{_sysconfdir}/rdpmux/shadow/server.key
+touch %{buildroot}%{_sysconfdir}/rdpmux/shadow/server.crt
 
+%post
 %systemd_post rdpmux.service
 
 %preun
@@ -111,6 +113,9 @@ touch %{buildroot}%{_sharedstatedir}/rdpmux/shadow/server.crt
 %{_libdir}/pkgconfig/*.pc
 
 %changelog
+* Wed Aug 23 2017 Sri Ramanujam <sramanujam@datto.com> - 0.6.0-1
+- Bump to 0.6.0
+
 * Tue Jun 27 2017 Sri Ramanujam <sramanujam@datto.com> - 0.5.0-1
 - Bump to 0.5.0
 
