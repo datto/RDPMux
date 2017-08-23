@@ -9,7 +9,7 @@
 ## Introduction
 RDPMux provides multiplexed RDP servers for virtual machines. It supports multi-head sessions with simultaneous input and adaptive framerate adjustment for low-bandwidth and/or high-latency connections. 
 
-It communicates with VMs via [librdpmux](https://github.com/datto/librdpmux), which implements the communication protocol and exposes an API for hypervisors to hook into. More information about the communication protocol is in the PROTOCOL section of this document.
+It communicates with VMs via [librdpmux](https://github.com/datto/RDPMux/tree/master/lib), which implements the communication protocol and exposes an API for hypervisors to hook into. More information about the communication protocol is in the PROTOCOL section of this document.
 
 For build and installation instructions, see [INSTALL.md](./INSTALL.md).
 
@@ -22,7 +22,7 @@ For usage instructions, see [USAGE.md](./USAGE.md).
 RDPMux was initially intended as a project to build support for the FreeRDP library into QEMU, in much the same way as SPICE. However, licensing incompatibilities necessitated the decision to split the RDP server functionality into its own project. This also has the advantage of making RDPMux more general than just providing an RDP frontend for QEMU virtual machines. 
 
 ## Protocol
-For complete documentation on the wire protocol used to communicate with the backend, see the documentation in [librdpmux](https://github.com/datto/librdpmux).
+For complete documentation on the wire protocol used to communicate with the backend, see the documentation in [librdpmux](https://github.com/datto/RDPMux/tree/master/lib).
 
 For information on the RDP protocol itself, refer to [FreeRDP](https://github.com/freerdp/FreeRDP) and [Microsoft's own RDP documentation](https://msdn.microsoft.com/en-us/library/cc240445.aspx).
 
