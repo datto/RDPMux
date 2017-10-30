@@ -144,7 +144,6 @@ void RDPListener::processIncomingMessage(std::vector<uint32_t> rvec)
         processDisplaySwitch(rvec);
     } else if (rvec[0] == SHUTDOWN) {
         VLOG(2) << "LISTENER " << this << ": Shutdown event received!";
-        shadow_server_stop(server);
         parent->UnregisterVM(this->uuid, this->port);
     } else {
         // what the hell have you sent me
