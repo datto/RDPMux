@@ -105,7 +105,13 @@ void RDPListener::RunServer()
         LOG(WARNING) << "LISTENER " << this << ": Unable to create introspection data.";
         goto cleanup;
     }
-    registered_id = dbus_conn->register_object(dbus_name, introspection_data->lookup_interface(), vtable);
+
+    try {
+        registered_id = dbus_conn->register_object(dbus_name, introspection_data->lookup_interface(), vtable);
+    } catch (Gio::Error &e) {
+        LOG(WARNING) << "LISTENER " << this << ": Could not take listener name on bus. Is there a duplicate registered?";
+        goto cleanup;
+    }
 
     this->server->port = this->port;
 
