@@ -153,6 +153,11 @@ public:
     std::string CredentialPath();
 
     /**
+     * @brief Shutdown and unregister the listener.
+     */
+    void shutdown();
+
+    /**
      * @brief The freerdp_listener struct this object manages.
      *
      * This is the actual FreeRDP listener struct that holds most of the real internal state of the RDP listener itself.
@@ -247,11 +252,11 @@ private:
     /**
      * @brief Mutex guarding stop.
      */
-    std::mutex stopMutex;
+    std::mutex listenerStopMutex;
     /**
      * @brief Flag to be set when the listener needs to clean up and exit.
      */
-    bool stop;
+    bool listener_running;
     /**
      * @brief DBus id.
      */

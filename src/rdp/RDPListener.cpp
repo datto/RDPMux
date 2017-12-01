@@ -48,11 +48,11 @@ RDPListener::RDPListener(std::string uuid, int vm_id, uint16_t port, RDPServerWo
                                                                      uuid(uuid),
                                                                      samfile(),
                                                                      vm_id(vm_id),
+                                                                     listener_running(false),
                                                                      targetFPS(30),
                                                                      credential_path()
 {
     WTSRegisterWtsApiFunctionTable(FreeRDP_InitWtsApi());
-    stop = false;
 
     shadow_subsystem_set_entry(RDPMux_ShadowSubsystemEntry);
     server = shadow_server_new();
@@ -68,9 +68,15 @@ RDPListener::RDPListener(std::string uuid, int vm_id, uint16_t port, RDPServerWo
 
 RDPListener::~RDPListener()
 {
-    shadow_server_stop(server);
-    dbus_conn->unregister_object(registered_id);
+    {
+        std::lock_guard<std::mutex> lock(listenerStopMutex);
+        if (listener_running) {
+            shadow_server_stop(server);
+        }
+        listener_running = false;
+    }
     shadow_server_free(server);
+    dbus_conn->unregister_object(registered_id);
     WSACleanup();
 }
 
@@ -121,6 +127,11 @@ void RDPListener::RunServer()
         goto cleanup;
     }
 
+    {
+        std::lock_guard<std::mutex> lock(listenerStopMutex);
+        listener_running = true;
+    }
+
     WaitForSingleObject(this->server->thread, INFINITE);
 
     if (!GetExitCodeThread(this->server->thread, &exitCode)) {
@@ -131,8 +142,21 @@ void RDPListener::RunServer()
 
     VLOG(1) << "LISTENER " << this << ": Main loop exited, exit code " << status;
 cleanup:
-    parent->UnregisterVM(this->uuid, this->port); // this will trigger destruction of the RDPListener object.
+    shutdown(); // this will trigger destruction of the RDPListener object.
 }
+
+void RDPListener::shutdown()
+{
+    {
+        std::lock_guard<std::mutex> lock(listenerStopMutex);
+        if (listener_running) {
+            shadow_server_stop(this->server);
+        }
+        listener_running = false;
+    }
+    parent->UnregisterVM(this->uuid, this->port);
+}
+
 
 void RDPListener::processOutgoingMessage(std::vector<uint16_t> vec)
 {
@@ -150,7 +174,7 @@ void RDPListener::processIncomingMessage(std::vector<uint32_t> rvec)
         processDisplaySwitch(rvec);
     } else if (rvec[0] == SHUTDOWN) {
         VLOG(2) << "LISTENER " << this << ": Shutdown event received!";
-        parent->UnregisterVM(this->uuid, this->port);
+        shutdown();
     } else {
         // what the hell have you sent me
         LOG(WARNING) << "Invalid message type sent.";
