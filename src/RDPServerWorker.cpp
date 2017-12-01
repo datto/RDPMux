@@ -217,7 +217,7 @@ void RDPServerWorker::run()
                     obj.convert(&vec);
                     server->processIncomingMessage(vec);
                 } catch (std::out_of_range &e) {
-                    LOG(ERROR) << "Listener with UUID " << uuid << " does not exist in map!";
+                    LOG(WARNING) << "Listener with UUID " << uuid << " does not exist in map!";
                 } catch (std::exception &e) {
                     LOG(ERROR) << "Msgpack conversion failed: " << e.what();
                     LOG(ERROR) << "Offending buffer is " << unpacked.get();
