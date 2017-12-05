@@ -71,10 +71,11 @@ RDPListener::~RDPListener()
     {
         std::lock_guard<std::mutex> lock(listenerStopMutex);
         if (listener_running) {
-            shadow_server_stop(server);
+            listener_running = false;
+            usleep(200000);
         }
-        listener_running = false;
     }
+    shadow_server_uninit(server);
     shadow_server_free(server);
     dbus_conn->unregister_object(registered_id);
     WSACleanup();
@@ -132,12 +133,14 @@ void RDPListener::RunServer()
         listener_running = true;
     }
 
-    WaitForSingleObject(this->server->thread, INFINITE);
-
-    if (!GetExitCodeThread(this->server->thread, &exitCode)) {
-        status = -1;
-    } else {
-        status = exitCode;
+    while (true) {
+        WaitForSingleObject(this->server->thread, 150);
+        {
+            std::lock_guard<std::mutex> lock(listenerStopMutex);
+            if (!listener_running) {
+                break;
+            }
+        }
     }
 
     VLOG(1) << "LISTENER " << this << ": Main loop exited, exit code " << status;
@@ -147,13 +150,6 @@ cleanup:
 
 void RDPListener::shutdown()
 {
-    {
-        std::lock_guard<std::mutex> lock(listenerStopMutex);
-        if (listener_running) {
-            shadow_server_stop(this->server);
-        }
-        listener_running = false;
-    }
     parent->UnregisterVM(this->uuid, this->port);
 }
 
@@ -174,7 +170,10 @@ void RDPListener::processIncomingMessage(std::vector<uint32_t> rvec)
         processDisplaySwitch(rvec);
     } else if (rvec[0] == SHUTDOWN) {
         VLOG(2) << "LISTENER " << this << ": Shutdown event received!";
-        shutdown();
+        {
+            std::lock_guard<std::mutex> lock(listenerStopMutex);
+            listener_running = false;
+        }
     } else {
         // what the hell have you sent me
         LOG(WARNING) << "Invalid message type sent.";
@@ -337,5 +336,11 @@ void RDPListener::on_property_call(Glib::VariantBase &property,
     } else if (property_name == "RequiresAuthentication") {
         property = Glib::Variant<bool>::create(authenticating);
     }
+}
+
+bool RDPListener::listenerRunning()
+{
+    std::lock_guard<std::mutex> lock(listenerStopMutex);
+    return listener_running;
 }
 

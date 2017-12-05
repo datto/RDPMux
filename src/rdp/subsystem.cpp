@@ -237,7 +237,12 @@ void *rdpmux_subsystem_thread(rdpmuxShadowSubsystem *system)
     interval = (DWORD) (1000 / system->captureFrameRate);
     frametime = GetTickCount64() + interval;
 
-    while(1) {
+    while(true) {
+
+        if (!system->listener->listenerRunning()) {
+            break;
+        }
+
         status = WaitForMultipleObjects(nCount, events, FALSE, 5);
 
         if (WaitForSingleObject(stopEvent, 0) == WAIT_OBJECT_0) {
