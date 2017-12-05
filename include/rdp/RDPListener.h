@@ -170,6 +170,8 @@ public:
      */
     void *shm_buffer;
 
+    bool listenerRunning();
+
 private:
 
     /**
