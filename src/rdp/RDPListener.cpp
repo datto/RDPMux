@@ -288,10 +288,13 @@ void RDPListener::Authenticating(bool auth)
     if (auth) {
         this->server->settings->NlaSecurity = TRUE;
         this->server->settings->TlsSecurity = FALSE;
+        this->server->settings->RdpSecurity = FALSE;
         if (!this->server->settings->NtlmSamFile)
             this->server->settings->NtlmSamFile = _strdup(this->samfile.c_str());
     } else {
         this->server->settings->NlaSecurity = FALSE;
+        this->server->settings->TlsSecurity = TRUE;
+        this->server->settings->RdpSecurity = TRUE;
     }
 }
 
