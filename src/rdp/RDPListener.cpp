@@ -34,6 +34,7 @@ Glib::ustring RDPListener::introspection_xml =
         "    <method name='SetAuthentication'>"
         "      <arg type='b' name='auth' direction='in' />"
         "    </method>"
+        "    <method name='Shutdown'></method>"
         "    <property type='i' name='Port' access='read' />"
         "    <property type='i' name='NumConnectedPeers' access='read'/>"
         "    <property type='b' name='RequiresAuthentication' access='read'/>"
@@ -317,6 +318,13 @@ void RDPListener::on_method_call(const Glib::RefPtr<Gio::DBus::Connection> &, /*
         Glib::Variant<bool> auth_variant;
         parameters.get_child(auth_variant, 0);
         this->Authenticating(auth_variant.get());
+        invocation->return_value(Glib::VariantContainerBase());
+    } else if (method_name == "Shutdown") {
+        LOG(INFO) << "LISTENER " << this << ": Manually shutting down listener!";
+        {
+            std::lock_guard<std::mutex> lock(listenerStopMutex);
+            listener_running = false;
+        }
         invocation->return_value(Glib::VariantContainerBase());
     } else {
         Gio::DBus::Error error(Gio::DBus::Error::UNKNOWN_METHOD,
