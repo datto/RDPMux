@@ -10,7 +10,7 @@
 ## Introduction
 librdpmux provides an interface for interacting with virtual machine guests on a very low level. It provides access to the current framebuffer of the VM via shared memory, and exposes the ability to programmatically send and receive keyboard and mouse events.
 
-It was designed and built in concert with [RDPMux](http://github.com/datto/rdpmux), a project that provides multiplexed RDP servers for virtual machines. 
+It was designed and built in concert with [RDPMux](http://github.com/datto/rdpmux), a project that provides multiplexed RDP servers for virtual machines.
 
 For build and installation instructions, see [INSTALL.md](./INSTALL.md).
 
@@ -38,7 +38,7 @@ sudo make install
 
 ## Rationale
 
-librdpmux was initially intended to be part of a project to build support for the RDP protocol into QEMU, in much the same way as SPICE. However, licensing incompatibilities necessitated the decision to split the RDP server functionality into [its own project](http://github.com/datto/rdpmux), and maintain the hypervisor interface as its own library. 
+librdpmux was initially intended to be part of a project to build support for the RDP protocol into QEMU, in much the same way as SPICE. However, licensing incompatibilities necessitated the decision to split the RDP server functionality into [its own project](http://github.com/datto/rdpmux), and maintain the hypervisor interface as its own library.
 
 ## API Overview
 
@@ -46,7 +46,7 @@ Complete documentation is available in the [Doxygen documentation](./doc/html/in
 
 ### General Flow
 
-In general, the library API is divided into three main parts: 
+In general, the library API is divided into three main parts:
 1. Initialization
 2. Outbound communication
 3. Inbound communication
@@ -77,7 +77,7 @@ typedef struct InputEventCallbacks {
 Hopefully this looks pretty self-explanatory. Further information is available in the Doxygen documentation.
 
 #### Managing the Framebuffer
-These three functions are meant to handle various stages of the display update lifecycle. They are designed to be called by the backend at the appropriate points in its display update cycle. 
+These three functions are meant to handle various stages of the display update lifecycle. They are designed to be called by the backend at the appropriate points in its display update cycle.
 
 1. `mux_display_update()` is meant to be called when a region of the framebuffer updates.
 2. `mux_display_refresh()` is meant to be called every time the virtual display refreshes.
@@ -99,16 +99,16 @@ Mouse and keyboard events are delivered to the backend service via callback func
 #### Starting the loops
 To actually start the library's functionality, you need to spin up the two loop functions. These are: `mux_mainloop()` and `mux_display_buffer_update_loop()`. As a caveat: these functions contain infinite loops that block until they are needed.
 
-Once you start these three loops up, the library will be fully operational and should require no other babysitting. 
+Once you start these three loops up, the library will be fully operational and should require no other babysitting.
 
 #### Shutting Down the Library
-When terminating or shutting down the library/backend, the `mux_cleanup()` function must be called so that the library can shut itself down properly. Threads will be terminated, the socket will be disconnected and destroyd safely, and a shutdown message will be sent to the frontend. If you don't call this, there is a very high chance the backend will be held open by ZeroMQ for ten seconds, or perhaps not close at all. 
+When terminating or shutting down the library/backend, the `mux_cleanup()` function must be called so that the library can shut itself down properly. Threads will be terminated, the socket will be disconnected and destroyed safely, and a shutdown message will be sent to the frontend. If you don't call this, there is a very high chance the backend will be held open by ZeroMQ for ten seconds, or perhaps not close at all.
 
 ## Protocol
 RDPMux uses DBus for service registration, and Msgpack-encoded messages over ZeroMQ for service communication.
 
 ### DBus Registration
-RDPMux takes the well-known name `org.RDP.RDPMux` on the system bus, and exposes a method `Register` under the object `/org/RDPMux/Server`. 
+RDPMux takes the well-known name `org.RDP.RDPMux` on the system bus, and exposes a method `Register` under the object `/org/RDPMux/Server`.
 
 Services that wish to expose a backend to the RDPMux server should call `Register` with an integer value between 0 and `INT_MAX`. RDPMux uses this number as your VM's ID internally to prevent issues with duplicate UUIDs. In return, the caller will receive a path to the private ZeroMQ socket that should be used for IPC.
 
@@ -129,13 +129,13 @@ enum message_type {
 
 #### General message flow
 
-After a VM is registered using the DBus endpoint discussed above, two things have happened: an RDP server has been created and is listening for client connections, and a private socket has been created for communication between RDPMux and the backend. 
+After a VM is registered using the DBus endpoint discussed above, two things have happened: an RDP server has been created and is listening for client connections, and a private socket has been created for communication between RDPMux and the backend.
 
 The backend should connect to this socket and begin listening for messages on it. ZeroMQ sockets are full duplex, so messages should also be sent using this socket.
 
 Messages are encoded as Messagepack arrays of ints over the wire. The first element of the array is always going to be the type of message, and then the rest of the elements in the array will be specific to the message type. More about that below.
 
-In general, MOUSE and KEYBOARD messages are usually sent _from_ the RDPMux server (passed on from the RDP client) _to_ the backend. DISPLAY_REFRESH, DISPLAY_SWITCH, and DISPLAY_UPDATE_COMPLETE messages are sent _from_ the backend _to_ the RDPMux server for handling and communication to the RDP clients connected to that VM's RDP frontend. 
+In general, MOUSE and KEYBOARD messages are usually sent _from_ the RDPMux server (passed on from the RDP client) _to_ the backend. DISPLAY_REFRESH, DISPLAY_SWITCH, and DISPLAY_UPDATE_COMPLETE messages are sent _from_ the backend _to_ the RDPMux server for handling and communication to the RDP clients connected to that VM's RDP frontend.
 
 #### DISPLAY_UPDATE
 
@@ -225,7 +225,7 @@ typedef struct kb_update {
 
 #### DISPLAY_UPDATE_COMPLETE
 
-This update is meant to aid in the synchronization of the display buffer between the VM and the RDPMux server. During the display update cycle, the framebuffer is being concurrently accessed by both the VM (to write new framebuffer information) and RDPMux (to read framebuffer information back out). Because of this concurrent access, there is a possibility that RDPMux will read out inconsistent or corrupt framebuffer data and render that to the clients. 
+This update is meant to aid in the synchronization of the display buffer between the VM and the RDPMux server. During the display update cycle, the framebuffer is being concurrently accessed by both the VM (to write new framebuffer information) and RDPMux (to read framebuffer information back out). Because of this concurrent access, there is a possibility that RDPMux will read out inconsistent or corrupt framebuffer data and render that to the clients.
 
 To prevent this, we use DISPLAY_UPDATE_COMPLETE messages to communicate that RDPMux has finished copying out framebuffer information. The intention is that after sending a DISPLAY_UPDATE message, the hypervisor should not attempt to write to the framebuffer until it has received this message.
 
@@ -243,4 +243,3 @@ typedef struct update_ack {
     uint32_t framerate;
 } update_ack;
 ```
-
